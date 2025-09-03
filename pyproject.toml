@@ -1,0 +1,7 @@
+[project]
+name = "comfyui-sagado-nodes"
+description = "Set of personal custom nodes"
+version = "0.1.0"
+license = {file = "LICENSE"}
+
+requires-python = ">= 3.12"
