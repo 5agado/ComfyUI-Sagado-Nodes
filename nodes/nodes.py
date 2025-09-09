@@ -3,6 +3,10 @@ from pathlib import Path
 import torch
 from PIL import Image, ImageOps
 
+from server import PromptServer
+
+MESSAGE_TYPE = "sagado_nodes.textmessage"
+
 class ImageLoaderNode:
     @classmethod
     def INPUT_TYPES(cls):
@@ -21,30 +25,46 @@ class ImageLoaderNode:
     RETURN_TYPES = ("IMAGE", "MASK", "STRING")
     RETURN_NAMES = ("image", "mask", "image_path")
     CATEGORY = "Sagado-Nodes"
-    FUNCTION = "get_image_path"
+    FUNCTION = "get_image"
 
-    def get_image_path(self, folder_path, image_idx, random_idx, shuffle, seed):
-        images = []
-        image_path = ''
-        if not folder_path or not Path(folder_path).is_dir():
-            print("Invalid folder path provided.")
-        for ext in ["jpg", "jpeg", "png"]:
-            images.extend(Path(folder_path).glob(f"*.{ext}"))
-        if not images:
-            print("No images found in the specified folder.")
-        np.random.seed(seed)
-        if shuffle:
-            np.random.shuffle(images)
-        if not random_idx:
-            if image_idx >= len(images):
-                print(f"Index {image_idx} out of range, out of {len(images)} images found.")
-            else:
-                image_path = str(images[image_idx])
+    def get_image(self, folder_path, image_idx, random_idx, shuffle, seed):
+        image_path = get_media(folder_path, image_idx, random_idx, shuffle, seed, exts=["png", "jpg", "jpeg", "webp"])
+        if image_path:
+            image, mask = load_image(image_path)
+            return image, mask, image_path
         else:
-            image_path = images[np.random.choice(len(images))]
+            return None, None, image_path
 
-        image, mask = load_image(image_path)
-        return image, mask, image_path
+
+class VideoLoaderNode:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "folder_path": ("STRING", {"default": ""}),
+            },
+            "optional": {
+                "video_idx": ("INT", {"default": "0"}),
+                "random_idx": ("BOOLEAN", {"default": False}),
+                "shuffle": ("BOOLEAN", {"default": False}),
+                "seed": ("INT", {"default": 42}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE", "MASK", "STRING")
+    RETURN_NAMES = ("image", "mask", "video_path")
+    CATEGORY = "Sagado-Nodes"
+    FUNCTION = "get_video_path"
+
+    def get_video_path(self, folder_path, video_idx, random_idx, shuffle, seed):
+        video_path = get_media(folder_path, video_idx, random_idx, shuffle, seed, exts=["mp4", "mov", "avi", "mkv"])
+
+        if video_path:
+            # TODO load videos
+            #image, mask = load_image(image_path)
+            return None, None, video_path
+        else:
+            return None, None, video_path
 
 
 class GetNumFramesNode:
@@ -52,7 +72,7 @@ class GetNumFramesNode:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "seconds": ("INT", {"default": 1, "min": 1, "max": 6}),
+                "seconds": ("INT", {"default": 1, "min": 0, "max": 10}),
             }
         }
 
@@ -61,9 +81,11 @@ class GetNumFramesNode:
     CATEGORY = "Sagado-Nodes"
     FUNCTION = "get_num_frames"
 
-    def get_num_frames(self, seconds):
-        fps = 16
-        num_frames = (seconds * fps) + 1
+    def get_num_frames(self, seconds, fps=16):
+        if seconds == 0:
+            num_frames = 1
+        else:
+            num_frames = (seconds * fps) + 1
         return (num_frames,)
 
 
@@ -116,3 +138,31 @@ def load_image(image_path):
     else:
         mask = torch.zeros((height, width), dtype=torch.float32, device="cpu")
     return image, mask
+
+
+def get_media(folder_path, media_idx, random_idx, shuffle, seed, exts):
+    media = []
+    media_path = ''
+    if not folder_path or not Path(folder_path).is_dir():
+        print("Invalid folder path provided.")
+        PromptServer.instance.send_sync(MESSAGE_TYPE, {"message": "Invalid folder path provided."})
+    for ext in exts:
+        media.extend(Path(folder_path).glob(f"*.{ext}"))
+    if not media:
+        print(f"No media found in the specified folder ({str(exts)}).")
+        PromptServer.instance.send_sync(MESSAGE_TYPE, {"message": f"No media found in the specified folder ({str(exts)})."})
+    else:
+        print(f"Found {len(media)} media in the specified folder ({str(exts)}).")
+        np.random.seed(seed)
+        if shuffle:
+            np.random.shuffle(media)
+        if not random_idx:
+            if media_idx >= len(media):
+                print(f"Index {media_idx} out of range, out of {len(media)} media found.")
+                PromptServer.instance.send_sync(MESSAGE_TYPE,
+                                                {"message":f"Index {media_idx} out of range, out of {len(media)} media found."})
+            else:
+                media_path = str(media[media_idx])
+        else:
+            media_path = media[np.random.choice(len(media))]
+    return media_path
