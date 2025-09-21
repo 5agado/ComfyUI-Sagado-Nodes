@@ -2,6 +2,7 @@ import numpy as np
 from pathlib import Path
 import torch
 from PIL import Image, ImageOps
+import comfy
 
 from server import PromptServer
 
@@ -15,7 +16,7 @@ class ImageLoaderNode:
                 "folder_path": ("STRING", {"default": ""}),
             },
             "optional": {
-                "image_idx": ("INT", {"default": "0"}),
+                "image_idx": ("INT", {"default": "0", "control_after_generate": True}),
                 "random_idx": ("BOOLEAN", {"default": False}),
                 "shuffle": ("BOOLEAN", {"default": False}),
                 "seed": ("INT", {"default": 42}),
@@ -26,6 +27,7 @@ class ImageLoaderNode:
     RETURN_NAMES = ("image", "mask", "image_path")
     CATEGORY = "Sagado-Nodes"
     FUNCTION = "get_image"
+    DESCRIPTION = "Util to load images from a folder"
 
     def get_image(self, folder_path, image_idx, random_idx, shuffle, seed):
         image_path = get_media(folder_path, image_idx, random_idx, shuffle, seed, exts=["png", "jpg", "jpeg", "webp"])
@@ -44,7 +46,7 @@ class VideoLoaderNode:
                 "folder_path": ("STRING", {"default": ""}),
             },
             "optional": {
-                "video_idx": ("INT", {"default": "0"}),
+                "video_idx": ("INT", {"default": "0", "control_after_generate": True}),
                 "random_idx": ("BOOLEAN", {"default": False}),
                 "shuffle": ("BOOLEAN", {"default": False}),
                 "seed": ("INT", {"default": 42}),
@@ -55,6 +57,7 @@ class VideoLoaderNode:
     RETURN_NAMES = ("image", "mask", "video_path")
     CATEGORY = "Sagado-Nodes"
     FUNCTION = "get_video_path"
+    DESCRIPTION = "Util to load videos from a folder"
 
     def get_video_path(self, folder_path, video_idx, random_idx, shuffle, seed):
         video_path = get_media(folder_path, video_idx, random_idx, shuffle, seed, exts=["mp4", "mov", "avi", "mkv"])
@@ -80,6 +83,7 @@ class GetNumFramesNode:
     RETURN_NAMES = ("num_frames",)
     CATEGORY = "Sagado-Nodes"
     FUNCTION = "get_num_frames"
+    DESCRIPTION = "Get number of frames from seconds"
 
     def get_num_frames(self, seconds, fps=16):
         if seconds == 0:
@@ -106,6 +110,7 @@ class GetResolutionNode:
     RETURN_NAMES = ("width","height")
     CATEGORY = "Sagado-Nodes"
     FUNCTION = "get_resolution"
+    DESCRIPTION = "Get resolution from base dimension and aspect ratio"
 
     def get_resolution(self, base_dimension, aspect_ratio, orientation):
         if orientation == "landscape":
@@ -166,3 +171,31 @@ def get_media(folder_path, media_idx, random_idx, shuffle, seed, exts):
         else:
             media_path = media[np.random.choice(len(media))]
     return media_path
+
+
+class FilmGrainNode:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "images": ("IMAGE",),
+                "strength": ("FLOAT", {"default": 0.07, "min": 0.0, "max": 1.0, "step": 0.01}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("image",)
+    CATEGORY = "Sagado-Nodes"
+    FUNCTION = "add_film_grain"
+    DESCRIPTION = "Add film grain to image/video"
+
+
+    def add_film_grain(self, images, strength):
+        device = comfy.model_management.get_torch_device()
+        images = images.to(device)
+
+        noise = torch.randn_like(images) * strength
+        grainy_images = torch.clamp(images + noise, 0.0, 1.0)
+
+        grainy_images = grainy_images.to(comfy.model_management.intermediate_device())
+        return (grainy_images,)

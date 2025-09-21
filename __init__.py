@@ -5,4 +5,5 @@ NODE_CLASS_MAPPINGS = {
     "Get Num Frames" : GetNumFramesNode,
     "Get Resolution": GetResolutionNode,
     "Video Loader": VideoLoaderNode,
+    "Film Grain": FilmGrainNode,
 }

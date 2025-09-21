@@ -6,7 +6,7 @@ import subprocess
 
 civitai_base_download_url = 'https://civitai.com/api/download/models'
 
-
+# TODO print progress don't hide
 def download_model(url, rename = None, civitai_api_key = None):
     """Download a model from a given URL using aria2 (!apt-get -qq -y install aria2)"""
     base_aria_command = 'aria2c --console-log-level=error -c -x 16 -s 16 -k 1M'
