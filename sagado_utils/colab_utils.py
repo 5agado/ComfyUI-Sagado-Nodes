@@ -23,7 +23,7 @@ def download_model(url, rename = None, civitai_api_key = None):
     subprocess.run(cmd, shell=True, check=True)
 
 
-def download_lora(comfyui_root, lora_config: Dict, base_model, civitai_api_key):
+def download_lora(comfyui_root, lora_config: Dict, base_model, civitai_api_key, model_format):
     main_category = lora_config['main_category'].replace('/', '-')
     second_category = lora_config['second_category'].replace('/', '-')
     dest_path = Path(f'{comfyui_root}/models/loras/{base_model}/{main_category}/{second_category}'.strip())
@@ -32,7 +32,8 @@ def download_lora(comfyui_root, lora_config: Dict, base_model, civitai_api_key):
     os.chdir(str(dest_path))
     print('=====')
     print(f'Downloading {lora_config['description']}')
-    download_model(f"{civitai_base_download_url}/{lora_config['model_id']}?type=Model&format=SafeTensor", civitai_api_key=civitai_api_key)
+    download_model(f"{civitai_base_download_url}/{lora_config['model_id']}?type=Model&format={model_format}",
+                   civitai_api_key=civitai_api_key)
 
 
 def download_loras(json_path: str, include_main_cats: list, exclude_main_cats: list, base_models_enabled: Dict[str, bool],
@@ -51,4 +52,5 @@ def download_loras(json_path: str, include_main_cats: list, exclude_main_cats: l
                 lora_model_id = lora.get(f'model_id_{base_model}', '')
                 if lora_model_id:
                     lora['model_id'] = lora_model_id
-                    download_lora(comfyui_root, lora, base_model, civitai_api_key)
+                    model_format = 'Diffusers' if lora.get('is_zip', False) else 'SafeTensor'
+                    download_lora(comfyui_root, lora, base_model, civitai_api_key, model_format=model_format)
