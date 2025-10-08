@@ -23,10 +23,10 @@ def download_model(url, rename = None, civitai_api_key = None):
     subprocess.run(cmd, shell=True, check=True)
 
 
-def download_lora(comfyui_root, lora_config: Dict, base_model, civitai_api_key, model_format):
+def download_lora(base_dir: Path, lora_config: Dict, base_model, civitai_api_key, model_format):
     main_category = lora_config['main_category'].replace('/', '-')
     second_category = lora_config['second_category'].replace('/', '-')
-    dest_path = Path(f'{comfyui_root}/models/loras/{base_model}/{main_category}/{second_category}'.strip())
+    dest_path = base_dir / f'{base_model}/{main_category}/{second_category}'
     dest_path.mkdir(exist_ok=True, parents=True)
     # change working directory to the destination path
     os.chdir(str(dest_path))
@@ -39,6 +39,7 @@ def download_lora(comfyui_root, lora_config: Dict, base_model, civitai_api_key, 
 def download_loras(json_path: str, include_main_cats: list, exclude_main_cats: list, base_models_enabled: Dict[str, bool],
                    comfyui_root: str, civitai_api_key: str):
     """Download custom loras from a json file"""
+    loras_base_dir = Path(f'{comfyui_root}/models/loras')
     with open(json_path, 'r') as f:
         loras = json.load(f)
         for idx, lora in enumerate(loras):
@@ -53,4 +54,9 @@ def download_loras(json_path: str, include_main_cats: list, exclude_main_cats: l
                 if lora_model_id:
                     lora['model_id'] = lora_model_id
                     model_format = 'Diffusers' if lora.get('is_zip', False) else 'SafeTensor'
-                    download_lora(comfyui_root, lora, base_model, civitai_api_key, model_format=model_format)
+                    download_lora(loras_base_dir, lora, base_model, civitai_api_key, model_format=model_format)
+    # unzip any downloaded zip files
+    zip_files = list(loras_base_dir.rglob('*.zip'))
+    for zip_file in zip_files:
+        print(f'Unzipping {zip_file}...')
+        subprocess.run(f'unzip -o "{zip_file}" -d "{zip_file.parent}"', shell=True, check=True)
