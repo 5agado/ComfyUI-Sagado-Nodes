@@ -55,8 +55,8 @@ def download_loras(json_path: str, include_main_cats: list, exclude_main_cats: l
                     lora['model_id'] = lora_model_id
                     model_format = 'Diffusers' if lora.get('is_zip', False) else 'SafeTensor'
                     download_lora(loras_base_dir, lora, base_model, civitai_api_key, model_format=model_format)
-    # unzip any downloaded zip files
+    # unzip any downloaded zip files, this also removes the zip after successful extraction
     zip_files = list(loras_base_dir.rglob('*.zip'))
     for zip_file in zip_files:
-        print(f'Unzipping {zip_file}...')
-        subprocess.run(f'unzip -o "{zip_file}" -d "{zip_file.parent}"', shell=True, check=True)
+        print(f'Unzipping (and then removing) {zip_file}...')
+        subprocess.run(f'unzip -o "{zip_file}" -d "{zip_file.parent}" && rm "{zip_file}"', shell=True, check=True)
