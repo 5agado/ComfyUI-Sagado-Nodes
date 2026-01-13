@@ -75,7 +75,8 @@ class GetNumFramesNode:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "seconds": ("INT", {"default": 1, "min": 0, "max": 10}),
+                "seconds": ("INT", {"default": 1, "min": 0, "max": 20}),
+                "fps": ("INT", {"default": 16}),
             }
         }
 
@@ -85,7 +86,7 @@ class GetNumFramesNode:
     FUNCTION = "get_num_frames"
     DESCRIPTION = "Get number of frames from seconds"
 
-    def get_num_frames(self, seconds, fps=16):
+    def get_num_frames(self, seconds, fps):
         if seconds == 0:
             num_frames = 1
         else:
