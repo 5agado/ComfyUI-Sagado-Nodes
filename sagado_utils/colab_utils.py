@@ -37,15 +37,21 @@ def download_lora(base_dir: Path, lora_config: Dict, base_model, civitai_api_key
 
 
 def download_loras(json_path: str, include_main_cats: list, exclude_main_cats: list, base_models_enabled: Dict[str, bool],
-                   comfyui_root: str, civitai_api_key: str):
+                   comfyui_root: str, civitai_api_key: str, loras_json_content: str = None):
     """Download custom loras from a json file"""
     loras_base_dir = Path(f'{comfyui_root}/models/loras')
+    # if loras_json_content is provided, write it to json_path
+    if loras_json_content:
+        with open(json_path, 'w+') as f:
+            f.write(loras_json_content)
+    # read loras from the json file
     with open(json_path, 'r') as f:
         loras = json.load(f)
         for idx, lora in enumerate(loras):
             print(f'===== {idx}/{len(loras)} =====')
             main_category = lora['main_category'].replace('/', '-')
-            skip_lora = lora.get('skip', False)
+            # we skip loras that are marked as skip or that have been removed from civitai
+            skip_lora = lora.get('skip', False) or lora.get('removed', False)
             # download only selected loras based on main category and skip flag
             if (include_main_cats and main_category not in include_main_cats) or (main_category in exclude_main_cats) or skip_lora:
                 continue
