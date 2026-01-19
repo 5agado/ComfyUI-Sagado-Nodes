@@ -1,16 +1,18 @@
 import ollama
 
-class OllamaNode():
+class OllamaNode:
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "model_name": (str, {"default": "llama2"}),
-                "prompt": (str, {"default": ""}),
-                "image_path": (str, {"default": "", "optional": True}),
-                "image_base64": (str, {"default": "", "optional": True}),
-                "temperature": (float, {"default": 0.6}),
-                "max_tokens": (int, {"default": 2048}),
+                "model_name": ("STRING", {"default": "llama2"}),
+                "prompt": ("STRING", {"default": ""}),
+                "temperature": ("FLOAT", {"default": 0.6}),
+                "max_tokens": ("INT", {"default": 2048}),
+            },
+            "optional": {
+                "image_path": ("STRING", {"default": ""}),
+                "image_base64": ("STRING", {"default": ""}),
             }
         }
 
@@ -21,9 +23,9 @@ class OllamaNode():
     FUNCTION = "get_response"
     DESCRIPTION = "Util to get response from local Ollama models"
 
-    def get_response(self, model_name, prompt, image_path, image_base64, temperature, max_tokens):
+    def get_response(self, model_name, prompt, temperature, max_tokens, image_path, image_base64):
         response = get_ollama_response(
-            model_name, user_message, image_path or None, image_base64 or None, temperature, max_tokens
+            model_name, prompt, image_path or None, image_base64 or None, temperature, max_tokens
         )
         return (str(response.message.content),)
 
