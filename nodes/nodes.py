@@ -200,3 +200,53 @@ class FilmGrainNode:
 
         grainy_images = grainy_images.to(comfy.model_management.intermediate_device())
         return (grainy_images,)
+
+
+class StepEveryNNode:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "seed": ("INT", {"default": 0}),
+                "increment_every_n": ("INT", {"default": 1}),
+                "current_index": ("INT", {"default": 0}),
+            },
+        }
+
+    RETURN_TYPES = ("INT",)
+    RETURN_NAMES = ("SEED",)
+    CATEGORY = "Sagado-Nodes"
+    FUNCTION = "step_seed"
+    DESCRIPTION = "Increment seed every N steps"
+
+    def step_seed(self, seed, increment_every_n, current_index):
+        # Calculate the offset based on integer division
+        # Example: if N=3, seed increases at index 3, 6, 9...
+        modified_seed = current_index + (seed // increment_every_n)
+
+        return (modified_seed,)
+
+
+class AnyTypeSwitch:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "on_true": ("*",),
+                "on_false": ("*",),
+                "switch": ("BOOLEAN", {"default": True}),
+            },
+        }
+
+    # The return type is also set to "*" to pass through whatever was sent in
+    RETURN_TYPES = ("*",)
+    RETURN_NAMES = ("OUTPUT",)
+    CATEGORY = "Sagado-Nodes"
+    FUNCTION = "select_input"
+    DESCRIPTION = "Select between two inputs of any type based on a boolean switch"
+
+    def select_input(self, on_true, on_false, switch):
+        if switch:
+            return (on_true,)
+        else:
+            return (on_false,)
