@@ -1,5 +1,5 @@
 from .nodes.nodes import *
-from .nodes.llm_nodes import OllamaNode, GetLlamaCppModelNode, GetLlamaCppResponseNode
+from .nodes.llm_nodes import OllamaNode, GetLlamaCppModelNode, GetLlmResponseNode
 
 NODE_CLASS_MAPPINGS = {
     "SGD_Image_Loader": ImageLoaderNode,
@@ -9,7 +9,7 @@ NODE_CLASS_MAPPINGS = {
     "SGD_Film_Grain": FilmGrainNode,
     "SGD_Call_Ollama": OllamaNode,
     "SGD_Get_Llama_Cpp_Model": GetLlamaCppModelNode,
-    "SGD_Get_Llama_Cpp_Response": GetLlamaCppResponseNode,
+    "SGD_Get_Llm_Response": GetLlmResponseNode,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -20,5 +20,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SGD_Film_Grain": "Film Grain",
     "SGD_Call_Ollama": "Call Ollama",
     "SGD_Get_Llama_Cpp_Model": "Get LlamaCPP Model",
-    "SGD_Get_Llama_Cpp_Response": "Get LlamaCPP Response",
+    "SGD_Get_Llm_Response": "Get LLM Response",
 }

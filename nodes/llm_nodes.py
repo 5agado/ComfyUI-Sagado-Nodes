@@ -83,7 +83,7 @@ class GetLlamaCppModelNode:
         )
         return (model,)
 
-class GetLlamaCppResponseNode:
+class GetLlmResponseNode:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -104,10 +104,10 @@ class GetLlamaCppResponseNode:
     RETURN_NAMES = ("response_message", "full_response")
 
     CATEGORY = "Sagado-Nodes"
-    FUNCTION = "get_llama_cpp_response"
+    FUNCTION = "get_llm_response"
     DESCRIPTION = "Get response from the provided llama.cpp model"
 
-    def get_llama_cpp_response(self, model, prompt: str, image_path: str = None, image_base64 = None,
+    def get_llm_response(self, model, prompt: str, image_path: str = None, image_base64 = None,
                                temperature = 0.7, max_tokens = 1024, top_p = 0.95):
         try:
             response = model.create_chat_completion(
