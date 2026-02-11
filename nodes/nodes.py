@@ -232,8 +232,8 @@ class AnyTypeSwitch:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "on_true": ("*",),
-                "on_false": ("*",),
+                "on_true": ("*", {"lazy": True}),
+                "on_false": ("*", {"lazy": True}),
                 "switch": ("BOOLEAN", {"default": True}),
             },
         }
@@ -245,8 +245,8 @@ class AnyTypeSwitch:
     FUNCTION = "select_input"
     DESCRIPTION = "Select between two inputs of any type based on a boolean switch"
 
+    def check_lazy_status(self, on_true, on_false, switch):
+        return [on_true] if switch else [on_false]
+
     def select_input(self, on_true, on_false, switch):
-        if switch:
-            return (on_true,)
-        else:
-            return (on_false,)
+        return (on_true if switch else on_false,)

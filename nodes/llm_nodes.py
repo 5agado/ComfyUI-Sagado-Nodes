@@ -9,7 +9,7 @@ class OllamaNode:
                 "model_name": ("STRING", {"default": "llama2"}),
                 "prompt": ("STRING", {"default": ""}),
                 "temperature": ("FLOAT", {"default": 0.6, "min": 0.0, "max": 1.0, "step": 0.1}),
-                "max_tokens": ("INT", {"default": 2048}),
+                "max_tokens": ("INT", {"default": 2048, "min": -1, "max": 32000, "step": 128}),
             },
             "optional": {
                 "image_path": ("STRING", {"default": ""}),
@@ -80,6 +80,8 @@ class GetLlamaCppModelNode:
             model_path=str(models_dir_path / model_name),
             chat_format=chat_format,
             verbose=False,
+            n_gpu_layers=-1,
+            n_ctx = 0,
         )
         return (model,)
 
@@ -91,7 +93,7 @@ class GetLlmResponseNode:
                 "model": ("MODEL",),
                 "prompt": ("STRING", {"default": ""}),
                 "temperature": ("FLOAT", {"default": 0.6, "min": 0.0, "max": 1.0, "step": 0.1}),
-                "max_tokens": ("INT", {"default": 2048}),
+                "max_tokens": ("INT", {"default": 2048, "min": -1, "max": 32000, "step": 128}),
                 "top_p": ("FLOAT", {"default": 0.95, "min": 0.0, "max": 1.0, "step": 0.05}),
             },
             "optional": {
