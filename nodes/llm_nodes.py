@@ -95,6 +95,7 @@ class GetLlmResponseNode:
                 "temperature": ("FLOAT", {"default": 0.6, "min": 0.0, "max": 1.0, "step": 0.1}),
                 "max_tokens": ("INT", {"default": 2048, "min": -1, "max": 32000, "step": 128}),
                 "top_p": ("FLOAT", {"default": 0.95, "min": 0.0, "max": 1.0, "step": 0.05}),
+                "seed": ("INT", {"default": 42}),
             },
             "optional": {
                 "image_path": ("STRING", {"default": ""}),
@@ -110,7 +111,7 @@ class GetLlmResponseNode:
     DESCRIPTION = "Get response from the provided llama.cpp model"
 
     def get_llm_response(self, model, prompt: str, image_path: str = None, image_base64 = None,
-                               temperature = 0.7, max_tokens = 1024, top_p = 0.95):
+                               temperature = 0.7, max_tokens = 1024, top_p = 0.95, seed = 42):
         try:
             response = model.create_chat_completion(
                 messages=[
@@ -125,6 +126,8 @@ class GetLlmResponseNode:
             )
             response_json = json.dumps(response, indent=4)
             response_message = response['choices'][0]['message']['content']
+            # hardcoded extract of message when "thinking" model
+            response_message = response_message.split('</think>')[-1].strip()
         except Exception as e:
             print(f'Error getting LLM response: {e}')
             raise e

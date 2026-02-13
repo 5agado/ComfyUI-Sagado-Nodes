@@ -95,8 +95,6 @@ class GetNumFramesNode:
 
 
 class GetResolutionNode:
-    # TODO add some presets depending on models
-    # 1280x720 960x544 832x480
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -250,3 +248,56 @@ class AnyTypeSwitch:
 
     def select_input(self, on_true, on_false, switch):
         return (on_true if switch else on_false,)
+
+
+class AnyListSelector:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "any_list": ("LIST",),
+                "index": ("INT", {"default": 0, "step": 1}),
+            },
+        }
+
+    # "*" allows the node to output any data type
+    RETURN_TYPES = ("*",)
+    RETURN_NAMES = ("element",)
+    CATEGORY = "Sagado-Nodes"
+    FUNCTION = "select_element"
+    DESCRIPTION = "Select an element from a list by index, supporting negative indexing for reverse access"
+
+    def select_element(self, any_list, index):
+        if not any_list:
+            raise ValueError("The input list is empty.")
+
+        try:
+            selected = any_list[index]
+            return (selected,)
+        except IndexError:
+            raise IndexError(f"Index {index} is out of range for list of length {len(any_list)}.")
+
+
+class StringSplitter:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "text": ("STRING", {"multiline": True, "default": ""}),
+                "delimiter": ("STRING", {"default": ","}),
+            },
+        }
+
+    RETURN_TYPES = ("LIST",)
+    RETURN_NAMES = ("string_list",)
+    FUNCTION = "split_string"
+    CATEGORY = "Sagado-Nodes"
+    DESCRIPTION = "Split a string into a list based on a specified delimiter, supporting escaped characters like \\n and \\t"
+
+    def split_string(self, text, delimiter):
+        # Replace escaped newlines if the user literally types '\n'
+        actual_delimiter = delimiter.replace("\\n", "\n").replace("\\t", "\t")
+        result = text.split(actual_delimiter)
+        result = [item.strip() for item in result]
+
+        return (result,)
