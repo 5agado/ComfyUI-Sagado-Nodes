@@ -255,7 +255,7 @@ class AnyListSelector:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "any_list": ("LIST",),
+                "any_list": ("*",),
                 "index": ("INT", {"default": 0, "step": 1}),
             },
         }
@@ -268,9 +268,11 @@ class AnyListSelector:
     DESCRIPTION = "Select an element from a list by index, supporting negative indexing for reverse access"
 
     def select_element(self, any_list, index):
+        # check if any_list is actually a list, if not raise an error
+        if not isinstance(any_list, list):
+            raise TypeError(f"Expected a list for 'any_list', but got {type(any_list).__name__}.")
         if not any_list:
             raise ValueError("The input list is empty.")
-
         try:
             selected = any_list[index]
             return (selected,)
