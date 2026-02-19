@@ -244,7 +244,7 @@ class AnyTypeSwitch:
     DESCRIPTION = "Select between two inputs of any type based on a boolean switch"
 
     def check_lazy_status(self, on_true, on_false, switch):
-        return [on_true] if switch else [on_false]
+        return ["on_true"] if switch else ["on_false"]
 
     def select_input(self, on_true, on_false, switch):
         return (on_true if switch else on_false,)
