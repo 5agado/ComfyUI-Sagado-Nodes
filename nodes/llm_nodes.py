@@ -62,6 +62,7 @@ class GetLlamaCppModelNode:
                 "model_name": ("STRING", {"default": "llama2"}),
                 "models_dir_path": ("STRING", {"default": ""}),
                 "chat_format": ("STRING", {"default": "llama-2"}),
+                "n_ctx": ("INT", {"default": 4094, "min": -1, "step": 256}),
             }
         }
 
@@ -73,7 +74,7 @@ class GetLlamaCppModelNode:
     DESCRIPTION = "Load a local model using llama-cpp-python and return the model object for subsequent calls"
 
 
-    def get_llama_cpp_model(self, model_name, models_dir_path, chat_format):
+    def get_llama_cpp_model(self, model_name, models_dir_path, chat_format, n_ctx):
         from llama_cpp import Llama
         models_dir_path = Path(models_dir_path)
         model = Llama(
@@ -81,7 +82,7 @@ class GetLlamaCppModelNode:
             chat_format=chat_format,
             verbose=False,
             n_gpu_layers=-1,
-            n_ctx = 0,
+            n_ctx = n_ctx,
         )
         return (model,)
 
@@ -92,8 +93,9 @@ class GetLlmResponseNode:
             "required": {
                 "model": ("MODEL",),
                 "prompt": ("STRING", {"default": ""}),
+                "system_prompt": ("STRING", {"default": "You are a helpful assistant."}),
                 "temperature": ("FLOAT", {"default": 0.6, "min": 0.0, "max": 1.0, "step": 0.1}),
-                "max_tokens": ("INT", {"default": 2048, "min": -1, "max": 32000, "step": 128}),
+                "max_tokens": ("INT", {"default": 2048, "min": -1, "max": 32000, "step": 256}),
                 "top_p": ("FLOAT", {"default": 0.95, "min": 0.0, "max": 1.0, "step": 0.05}),
                 "seed": ("INT", {"default": 42}),
             },
@@ -110,14 +112,26 @@ class GetLlmResponseNode:
     FUNCTION = "get_llm_response"
     DESCRIPTION = "Get response from the provided llama.cpp model"
 
-    def get_llm_response(self, model, prompt: str, image_path: str = None, image_base64 = None,
-                               temperature = 0.7, max_tokens = 1024, top_p = 0.95, seed = 42):
+    def get_llm_response(self, model, prompt: str, system_prompt: str,
+                         image_path: str = None, image_base64 = None,
+                         temperature = 0.7, max_tokens = 1024, top_p = 0.95, seed = 42):
         try:
+            if image_path or image_base64:
+                user_content = [
+                    {"type" : "text", "text": prompt},
+                    {"type": "image_url", "image_url": [image_path or image_base64][0]},
+                ]
+            else:
+                user_content = prompt
             response = model.create_chat_completion(
                 messages=[
                     {
+                        "role": "system",
+                        "content": system_prompt,
+                    },
+                    {
                         'role': 'user',
-                        'content': prompt,
+                        'content': user_content,
                     }
                 ],
                 temperature=temperature,
