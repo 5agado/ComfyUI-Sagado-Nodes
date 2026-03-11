@@ -59,10 +59,10 @@ class GetLlamaCppModelNode:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "model_name": ("STRING", {"default": "llama2"}),
+                "model_name": ("STRING", {"default": ""}),
                 "models_dir_path": ("STRING", {"default": ""}),
-                "chat_format": ("STRING", {"default": "llama-2"}),
-                "n_ctx": ("INT", {"default": 4094, "min": -1, "step": 256}),
+                "chat_format": ("STRING", {"default": ""}),
+                "n_ctx": ("INT", {"default": 4094, "min": -1, "max": 128000, "step": 256}),
             }
         }
 
