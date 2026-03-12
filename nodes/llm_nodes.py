@@ -1,5 +1,9 @@
 import json
 from pathlib import Path
+import numpy as np
+from PIL import Image
+import io
+import base64
 
 class OllamaNode:
     @classmethod
@@ -63,6 +67,9 @@ class GetLlamaCppModelNode:
                 "models_dir_path": ("STRING", {"default": ""}),
                 "chat_format": ("STRING", {"default": ""}),
                 "n_ctx": ("INT", {"default": 4094, "min": -1, "max": 128000, "step": 256}),
+            },
+            "optional": {
+                "chat_handler": ("MODEL",),
             }
         }
 
@@ -74,12 +81,16 @@ class GetLlamaCppModelNode:
     DESCRIPTION = "Load a local model using llama-cpp-python and return the model object for subsequent calls"
 
 
-    def get_llama_cpp_model(self, model_name, models_dir_path, chat_format, n_ctx):
+    def get_llama_cpp_model(self, model_name, models_dir_path, chat_format, n_ctx, chat_handler=None):
         from llama_cpp import Llama
-        models_dir_path = Path(models_dir_path)
+        model_path = Path(models_dir_path) / model_name
+        if not model_path.exists():
+            raise FileNotFoundError(f"Model not found at: {model_path}")
+
         model = Llama(
-            model_path=str(models_dir_path / model_name),
+            model_path=str(model_path),
             chat_format=chat_format,
+            chat_handler=chat_handler,  # Injected vision handler
             verbose=False,
             n_gpu_layers=-1,
             n_ctx = n_ctx,
@@ -146,3 +157,73 @@ class GetLlmResponseNode:
             print(f'Error getting LLM response: {e}')
             raise e
         return response_message, response_json
+
+
+class GetLlamaVLChatHandlerNode:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "clip_model_name": ("STRING", {"default": ""}),
+                "models_dir_path": ("STRING", {"default": ""}),
+                "handler_type": (["Qwen3VL", "Qwen25VL"], {"default": "Qwen3VL"}),
+                "image_min_tokens": ("INT", {"default": 2048, "min": -1, "max": 12000, "step": 128}),
+            }
+        }
+
+    RETURN_TYPES = ("MODEL",)
+    RETURN_NAMES = ("chat_handler",)
+    CATEGORY = "Sagado-Nodes"
+    FUNCTION = "get_chat_handler"
+    DESCRIPTION = "Get the appropriate llama chat-handler for VL models"
+
+    def get_chat_handler(self, clip_model_name, models_dir_path, handler_type, image_min_tokens):
+        from llama_cpp.llama_chat_format import (
+            Qwen3VLChatHandler,
+            Qwen25VLChatHandler
+        )
+
+        model_path = Path(models_dir_path) / clip_model_name
+        if not model_path.exists():
+            raise FileNotFoundError(f"Chat-handler not found at: {model_path}")
+
+        if handler_type == "Qwen3VL":
+            handler_cls = Qwen3VLChatHandler
+        elif handler_type == "Qwen25VL":
+            handler_cls = Qwen25VLChatHandler
+        else:
+            raise ValueError(f"Unsupported handler type: {handler_type}")
+        handler = handler_cls(clip_model_path=str(model_path), image_min_tokens=image_min_tokens)
+
+        return (handler,)
+
+
+class ImageToPNGDataURINode:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ("IMAGE",)
+            }
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("data_uri",)
+    CATEGORY = "Sagado-Nodes"
+    FUNCTION = "encode_to_png_uri"
+    DESCRIPTION = "Converts a ComfyUI image to a PNG Data URI (data:image/png;base64,...)."
+
+    def encode_to_png_uri(self, image):
+        img_tensor = image[0]
+        i = 255. * img_tensor.cpu().numpy()
+        img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
+
+        # Save to Bytes as PNG
+        buffered = io.BytesIO()
+        img.save(buffered, format="PNG", compress_level=0)
+
+        # Encode to Base64
+        base64_string = base64.b64encode(buffered.getvalue()).decode("utf-8")
+        data_uri = f"data:image/png;base64,{base64_string}"
+
+        return (data_uri,)
