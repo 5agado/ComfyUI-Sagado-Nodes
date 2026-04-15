@@ -6,8 +6,8 @@ import subprocess
 
 civitai_base_download_url = 'https://civitai.com/api/download/models'
 
-# TODO print progress don't hide
-def download_model(url, rename = None, civitai_api_key = None):
+
+def download_model(url, rename = None, civitai_api_key = None, use_curl = False):
     """Download a model from a given URL using aria2 (!apt-get -qq -y install aria2)"""
     base_aria_command = 'aria2c --console-log-level=error -c -x 16 -s 16 -k 1M'
     # huggingface
@@ -17,13 +17,17 @@ def download_model(url, rename = None, civitai_api_key = None):
     # civitai
     else:
         token_url = f"{url}{'&' if '?' in url else '?'}token={civitai_api_key}"
-        cmd = f'{base_aria_command} "{token_url}"'
-        cmd += f' -o {rename}' if rename else ''
+        if use_curl:
+            cmd = f'curl -L "{token_url}"'
+            cmd += f' -o {rename}' if rename else ' -O'
+        else:
+            cmd = f'{base_aria_command} "{token_url}"'
+            cmd += f' -o {rename}' if rename else ''
     # run the command
     subprocess.run(cmd, shell=True, check=True)
 
 
-def download_lora(base_dir: Path, lora_config: Dict, base_model, civitai_api_key, model_format):
+def download_lora(base_dir: Path, lora_config: Dict, base_model, civitai_api_key, model_format, use_curl):
     main_category = lora_config['main_category'].replace('/', '-')
     second_category = lora_config['second_category'].replace('/', '-')
     dest_path = base_dir / f'{base_model}/{main_category}/{second_category}'
@@ -33,11 +37,11 @@ def download_lora(base_dir: Path, lora_config: Dict, base_model, civitai_api_key
     print('=====')
     print(f'Downloading {lora_config['description']}')
     download_model(f"{civitai_base_download_url}/{lora_config['model_id']}?type=Model&format={model_format}",
-                   civitai_api_key=civitai_api_key)
+                   civitai_api_key=civitai_api_key, use_curl=use_curl)
 
 
 def download_loras(json_path: str, include_main_cats: list, exclude_main_cats: list, base_models_enabled: Dict[str, bool],
-                   comfyui_root: str, civitai_api_key: str, loras_json_content: str = None):
+                   comfyui_root: str, civitai_api_key: str, loras_json_content: str = None, use_curl = False):
     """Download custom loras from a json file"""
     loras_base_dir = Path(f'{comfyui_root}/models/loras')
     # if loras_json_content is provided, write it to json_path
@@ -60,7 +64,7 @@ def download_loras(json_path: str, include_main_cats: list, exclude_main_cats: l
                 if lora_model_id:
                     lora['model_id'] = lora_model_id
                     model_format = 'Diffusers' if lora.get('is_zip', False) else 'SafeTensor'
-                    download_lora(loras_base_dir, lora, base_model, civitai_api_key, model_format=model_format)
+                    download_lora(loras_base_dir, lora, base_model, civitai_api_key, model_format, use_curl)
     # unzip any downloaded zip files, this also removes the zip after successful extraction
     zip_files = list(loras_base_dir.rglob('*.zip'))
     for zip_file in zip_files:
