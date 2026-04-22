@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 from pathlib import Path
 import torch
@@ -18,7 +19,8 @@ class ImageLoaderNode:
             "optional": {
                 "image_idx": ("INT", {"default": "0", "control_after_generate": True}),
                 "random_idx": ("BOOLEAN", {"default": False}),
-                "shuffle": ("BOOLEAN", {"default": False}),
+                "sort_by": ("STRING", {"default": "date", "choices": ["name", "date", "shuffle"]}),
+                "reverse": ("BOOLEAN", {"default": False}),
                 "seed": ("INT", {"default": 42}),
             }
         }
@@ -29,8 +31,9 @@ class ImageLoaderNode:
     FUNCTION = "get_image"
     DESCRIPTION = "Util to load images from a folder"
 
-    def get_image(self, folder_path, image_idx, random_idx, shuffle, seed):
-        image_path = get_media(folder_path, image_idx, random_idx, shuffle, seed, exts=["png", "jpg", "jpeg", "webp"])
+    def get_image(self, folder_path, image_idx, random_idx, sort_by, reverse, seed):
+        image_path = get_media(folder_path, image_idx, random_idx, seed, exts=["png", "jpg", "jpeg", "webp"],
+                               sort_by=sort_by, reverse=reverse)
         if image_path:
             image, mask = load_image(image_path)
             return image, mask, image_path
@@ -48,7 +51,8 @@ class VideoLoaderNode:
             "optional": {
                 "video_idx": ("INT", {"default": "0", "control_after_generate": True}),
                 "random_idx": ("BOOLEAN", {"default": False}),
-                "shuffle": ("BOOLEAN", {"default": False}),
+                "sort_by": ("STRING", {"default": "date", "choices": ["name", "date", "shuffle"]}),
+                "reverse": ("BOOLEAN", {"default": False}),
                 "seed": ("INT", {"default": 42}),
             }
         }
@@ -59,8 +63,9 @@ class VideoLoaderNode:
     FUNCTION = "get_video_path"
     DESCRIPTION = "Util to load videos from a folder"
 
-    def get_video_path(self, folder_path, video_idx, random_idx, shuffle, seed):
-        video_path = get_media(folder_path, video_idx, random_idx, shuffle, seed, exts=["mp4", "mov", "avi", "mkv"])
+    def get_video_path(self, folder_path, video_idx, random_idx, sort_by, reverse, seed):
+        video_path = get_media(folder_path, video_idx, random_idx, seed, exts=["mp4", "mov", "avi", "mkv"],
+                               sort_by=sort_by, reverse=reverse)
 
         if video_path:
             # TODO load videos
@@ -144,7 +149,7 @@ def load_image(image_path):
     return image, mask
 
 
-def get_media(folder_path, media_idx, random_idx, shuffle, seed, exts):
+def get_media(folder_path, media_idx, random_idx, seed, exts, sort_by="name", reverse=False):
     media = []
     media_path = ''
     if not folder_path or not Path(folder_path).is_dir():
@@ -158,8 +163,15 @@ def get_media(folder_path, media_idx, random_idx, shuffle, seed, exts):
     else:
         print(f"Found {len(media)} media in the specified folder ({str(exts)}).")
         np.random.seed(seed)
-        if shuffle:
+        if sort_by == 'shuffle':
             np.random.shuffle(media)
+        # Sort media by the selected option
+        elif sort_by == "date":
+            media.sort(key=lambda p: p.stat().st_ctime)
+        else:  # Default to name
+            media.sort(key=lambda p: p.name.lower())
+        if reverse:
+            media.reverse()
         if not random_idx:
             if media_idx >= len(media):
                 print(f"Index {media_idx} out of range, out of {len(media)} media found.")
@@ -256,28 +268,25 @@ class AnyListSelector:
         return {
             "required": {
                 "any_list": ("*",),
-                "index": ("INT", {"default": 0, "step": 1}),
+                "index": ("INT", {"default": 0, "min": -sys.maxsize, "max": sys.maxsize, "step": 1}),
             },
         }
 
     # "*" allows the node to output any data type
     RETURN_TYPES = ("*",)
     RETURN_NAMES = ("element",)
+    INPUT_IS_LIST = True
     CATEGORY = "Sagado-Nodes"
     FUNCTION = "select_element"
     DESCRIPTION = "Select an element from a list by index, supporting negative indexing for reverse access"
 
     def select_element(self, any_list, index):
-        # check if any_list is actually a list, if not raise an error
-        if not isinstance(any_list, list):
-            raise TypeError(f"Expected a list for 'any_list', but got {type(any_list).__name__}.")
-        if not any_list:
-            raise ValueError("The input list is empty.")
+        i = index[0]
         try:
-            selected = any_list[index]
+            selected = any_list[i]
             return (selected,)
         except IndexError:
-            raise IndexError(f"Index {index} is out of range for list of length {len(any_list)}.")
+            raise IndexError(f"Index {i} is out of range for list of length {len(any_list)}.")
 
 
 class StringSplitter:

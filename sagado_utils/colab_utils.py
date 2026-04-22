@@ -7,13 +7,16 @@ import subprocess
 civitai_base_download_url = 'https://civitai.com/api/download/models'
 
 
-def download_model(url, rename = None, civitai_api_key = None, use_curl = False):
+def download_model(url, rename = None, civitai_api_key = None, use_curl = False,
+                   huggingface_token = None):
     """Download a model from a given URL using aria2 (!apt-get -qq -y install aria2)"""
     base_aria_command = 'aria2c --console-log-level=error -c -x 16 -s 16 -k 1M'
     # huggingface
     if 'huggingface.co' in url:
         filename = rename or url.split('/')[-1].removesuffix('?download=true')
         cmd = f'{base_aria_command} {url} -o {filename}'
+        if huggingface_token:
+            cmd += f' --header="Authorization: Bearer {huggingface_token}"'
     # civitai
     else:
         token_url = f"{url}{'&' if '?' in url else '?'}token={civitai_api_key}"
