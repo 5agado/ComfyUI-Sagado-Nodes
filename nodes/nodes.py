@@ -299,8 +299,9 @@ class StringSplitter:
             },
         }
 
-    RETURN_TYPES = ("LIST",)
+    RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("string_list",)
+    OUTPUT_IS_LIST = (True,)
     FUNCTION = "split_string"
     CATEGORY = "Sagado-Nodes"
     DESCRIPTION = "Split a string into a list based on a specified delimiter, supporting escaped characters like \\n and \\t"
@@ -308,7 +309,6 @@ class StringSplitter:
     def split_string(self, text, delimiter):
         # Replace escaped newlines if the user literally types '\n'
         actual_delimiter = delimiter.replace("\\n", "\n").replace("\\t", "\t")
-        result = text.split(actual_delimiter)
-        result = [item.strip() for item in result]
+        result = [item.strip() for item in text.split(actual_delimiter)]
 
         return (result,)
