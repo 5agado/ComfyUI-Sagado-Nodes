@@ -191,6 +191,7 @@ class FilmGrainNode:
             "required": {
                 "images": ("IMAGE",),
                 "strength": ("FLOAT", {"default": 0.07, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "batch_size": ("INT", {"default": 128, "step": 32}),
             }
         }
 
@@ -201,15 +202,19 @@ class FilmGrainNode:
     DESCRIPTION = "Add film grain to image/video"
 
 
-    def add_film_grain(self, images, strength):
+    def add_film_grain(self, images, strength, batch_size):
         device = comfy.model_management.get_torch_device()
-        images = images.to(device)
+        intermediate_device = comfy.model_management.intermediate_device()
 
-        noise = torch.randn_like(images) * strength
-        grainy_images = torch.clamp(images + noise, 0.0, 1.0)
+        grainy_images = []
+        for i in range(0, images.shape[0], batch_size):
+            batch = images[i:i + batch_size].to(device)
+            noise = torch.randn_like(batch) * strength
+            grainy_batch = torch.clamp(batch + noise, 0.0, 1.0)
+            grainy_images.append(grainy_batch.to(intermediate_device))
 
-        grainy_images = grainy_images.to(comfy.model_management.intermediate_device())
-        return (grainy_images,)
+        result = torch.cat(grainy_images, dim=0)
+        return (result,)
 
 
 class StepEveryNNode:
