@@ -5,6 +5,20 @@ from PIL import Image
 import io
 import base64
 
+thinking_model_options = {
+    'top_p': 0.95,
+    'top_k': 20,
+    'num_ctx': 32000,
+    'repeat_penalty': 1.1,
+}
+
+standard_model_options = {
+    'top_p': 0.8,
+    'top_k': 40,
+    'num_ctx': 8000,
+    'repeat_penalty': 1.0,
+}
+
 class OllamaNode:
     @classmethod
     def INPUT_TYPES(cls):
@@ -14,6 +28,7 @@ class OllamaNode:
                 "prompt": ("STRING", {"default": ""}),
                 "temperature": ("FLOAT", {"default": 0.6, "min": 0.0, "max": 1.0, "step": 0.1}),
                 "max_tokens": ("INT", {"default": 2048, "min": -1, "max": 32000, "step": 128}),
+                "think": ("BOOLEAN", {"default": False}),
             },
             "optional": {
                 "image_path": ("STRING", {"default": ""}),
@@ -28,18 +43,24 @@ class OllamaNode:
     FUNCTION = "get_response"
     DESCRIPTION = "Util to get response from local Ollama models"
 
-    def get_response(self, model_name, prompt, temperature, max_tokens, image_path, image_base64):
+    def get_response(self, model_name, prompt, temperature, max_tokens, think, image_path, image_base64):
+        if think:
+            llm_options = thinking_model_options
+        else:
+            llm_options = standard_model_options
         response = get_ollama_response(
-            model_name, prompt, image_path or None, image_base64 or None, temperature, max_tokens
+            model_name, prompt, image_path or None, image_base64 or None, temperature, max_tokens,
+            enable_thinking=think, **llm_options
         )
         return (str(response.message.content),)
 
 def get_ollama_response(model_name: str, prompt: str, image_path: str = None, image_base64 = None,
-                        temperature = 0.7, max_tokens = 1024):
+                        temperature = 0.7, max_tokens=1024, enable_thinking=True, **llm_options):
     import ollama
     try :
         response = ollama.chat(
             model=model_name,
+            think=enable_thinking,
             messages=[
                 {
                     'role': 'user',
@@ -50,7 +71,7 @@ def get_ollama_response(model_name: str, prompt: str, image_path: str = None, im
             options={
                 'num_predict': max_tokens,
                 'temperature': temperature,
-                'repeat_penalty': 1.1,
+                **llm_options  # merge in arbitrary kargs
             }
         )
     except Exception as e:
@@ -207,8 +228,8 @@ class ImageToPNGDataURINode:
             }
         }
 
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("data_uri",)
+    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("data_uri", "base64_string")
     CATEGORY = "Sagado-Nodes"
     FUNCTION = "encode_to_png_uri"
     DESCRIPTION = "Converts a ComfyUI image to a PNG Data URI (data:image/png;base64,...)."
@@ -226,4 +247,4 @@ class ImageToPNGDataURINode:
         base64_string = base64.b64encode(buffered.getvalue()).decode("utf-8")
         data_uri = f"data:image/png;base64,{base64_string}"
 
-        return (data_uri,)
+        return data_uri, base64_string
