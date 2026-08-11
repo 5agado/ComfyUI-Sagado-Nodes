@@ -33,14 +33,18 @@ def download_model(url, rename = None, civitai_api_key = None, use_curl = False,
 def download_lora(base_dir: Path, lora_config: Dict, base_model, civitai_api_key, model_format, use_curl):
     main_category = lora_config['main_category'].replace('/', '-')
     second_category = lora_config['second_category'].replace('/', '-')
+    model_id = lora_config['model_id']
+    file_id = lora_config.get('file_id', None)
+    filename = f"{base_model}_{lora_config['description'].replace(' ', '_').lower()}.safetensors"
+
     dest_path = base_dir / f'{base_model}/{main_category}/{second_category}'
     dest_path.mkdir(exist_ok=True, parents=True)
     # change working directory to the destination path
     os.chdir(str(dest_path))
     print('=====')
     print(f'Downloading {lora_config['description']}')
-    download_model(f"{civitai_base_download_url}/{lora_config['model_id']}?type=Model&format={model_format}",
-                   civitai_api_key=civitai_api_key, use_curl=use_curl)
+    model_url = f"{civitai_base_download_url}/{model_id}?type=Model&format={model_format}{'?fileId=' + str(file_id) if file_id else ''}"
+    download_model(model_url, rename=filename if use_curl else None, civitai_api_key=civitai_api_key, use_curl=use_curl)
 
 
 def download_loras(json_path: str, include_main_cats: list, exclude_main_cats: list, base_models_enabled: Dict[str, bool],
