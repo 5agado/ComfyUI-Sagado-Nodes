@@ -21,7 +21,7 @@ def download_model(url, rename = None, civitai_api_key = None, use_curl = False,
     else:
         token_url = f"{url}{'&' if '?' in url else '?'}token={civitai_api_key}"
         if use_curl:
-            cmd = f'curl -L "{token_url}"'
+            cmd = f'curl -LJ "{token_url}"'
             cmd += f' -o {rename}' if rename else ' -O'
         else:
             cmd = f'{base_aria_command} "{token_url}"'
@@ -30,7 +30,7 @@ def download_model(url, rename = None, civitai_api_key = None, use_curl = False,
     subprocess.run(cmd, shell=True, check=True)
 
 
-def download_lora(base_dir: Path, lora_config: Dict, base_model, civitai_api_key, model_format, use_curl):
+def download_lora(base_dir: Path, lora_config: Dict, base_model, civitai_api_key, use_curl):
     main_category = lora_config['main_category'].replace('/', '-')
     second_category = lora_config['second_category'].replace('/', '-')
     model_id = lora_config['model_id']
@@ -43,8 +43,8 @@ def download_lora(base_dir: Path, lora_config: Dict, base_model, civitai_api_key
     os.chdir(str(dest_path))
     print('=====')
     print(f'Downloading {lora_config['description']}')
-    model_url = f"{civitai_base_download_url}/{model_id}?type=Model&format={model_format}{'?fileId=' + str(file_id) if file_id else ''}"
-    download_model(model_url, rename=filename if use_curl else None, civitai_api_key=civitai_api_key, use_curl=use_curl)
+    model_url = f"{civitai_base_download_url}/{model_id}{'?fileId=' + str(file_id) if file_id else ''}"
+    download_model(model_url, rename=None, civitai_api_key=civitai_api_key, use_curl=use_curl)
 
 
 def download_loras(json_path: str, include_main_cats: list, exclude_main_cats: list, base_models_enabled: Dict[str, bool],
@@ -70,8 +70,7 @@ def download_loras(json_path: str, include_main_cats: list, exclude_main_cats: l
                 lora_model_id = lora.get(f'model_id_{base_model}', '')
                 if lora_model_id:
                     lora['model_id'] = lora_model_id
-                    model_format = 'Diffusers' if lora.get('is_zip', False) else 'SafeTensor'
-                    download_lora(loras_base_dir, lora, base_model, civitai_api_key, model_format, use_curl)
+                    download_lora(loras_base_dir, lora, base_model, civitai_api_key, use_curl)
     # unzip any downloaded zip files, this also removes the zip after successful extraction
     zip_files = list(loras_base_dir.rglob('*.zip'))
     for zip_file in zip_files:
