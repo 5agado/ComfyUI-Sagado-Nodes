@@ -24,8 +24,6 @@ app.registerExtension({
 
 		if (!node.widgets || node.widgets.length <= chooser_id) return;
 
-		console.log("[Sagado] widgets:", node.widgets.map((w, i) => `${i}:${w.name}(${w.type})`));
-
 		node._wildcard_value  = WILDCARD_LABEL;
 		node._cursor_start    = null;
 		node._cursor_end      = null;

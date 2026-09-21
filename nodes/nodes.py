@@ -267,6 +267,56 @@ class AnyTypeSwitch:
         return (on_true if switch else on_false,)
 
 
+class AnyTypeSwitchMulti:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                # Defines how many true/false pairs and outputs there will be
+                "inputcount": ("INT", {"default": 1, "min": 1, "max": 1000, "step": 1}),
+                "switch": ("BOOLEAN", {"default": True}),
+            },
+            "optional": {},
+        }
+
+    # Python statically defines the first output; the JS frontend will generate OUTPUT_2, OUTPUT_3, etc.
+    # The ComfyUI execution engine doesn't mind length mismatches as long as JS creates the pins
+    # and this Python class returns a tuple of the correct length.
+    RETURN_TYPES = ("*",)
+    RETURN_NAMES = ("OUTPUT_1",)
+    CATEGORY = "Sagado-Nodes"
+    FUNCTION = "select_input"
+    DESCRIPTION = "Select between multiple pairs of inputs of any type based on a single boolean switch."
+
+    def check_lazy_status(self, switch, inputcount, **kwargs):
+        """
+        Dynamically requests only the needed lazy inputs based on the switch state.
+        Iterates through the requested count to generate the expected pin names.
+        """
+        needed = []
+        for i in range(1, inputcount + 1):
+            if switch:
+                needed.append(f"on_true_{i}")
+            else:
+                needed.append(f"on_false_{i}")
+        return needed
+
+    def select_input(self, switch, inputcount, **kwargs):
+        """
+        Gathers the correctly routed inputs and returns them as a tuple
+        whose length matches `inputcount`.
+        """
+        results = []
+        for i in range(1, inputcount + 1):
+            if switch:
+                results.append(kwargs.get(f"on_true_{i}"))
+            else:
+                results.append(kwargs.get(f"on_false_{i}"))
+
+        # Returns a dynamic length tuple (e.g., (output_1, output_2, output_3, ...))
+        return tuple(results)
+
+
 class AnyListSelector:
     @classmethod
     def INPUT_TYPES(cls):
