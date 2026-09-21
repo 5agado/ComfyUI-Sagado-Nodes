@@ -39,7 +39,7 @@ class OllamaNode:
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("response",)
 
-    CATEGORY = "Sagado-Nodes"
+    CATEGORY = "Sagado-Nodes/llm"
     FUNCTION = "get_response"
     DESCRIPTION = "Util to get response from local Ollama models"
 
@@ -97,7 +97,7 @@ class GetLlamaCppModelNode:
     RETURN_TYPES = ("MODEL",)
     RETURN_NAMES = ("model",)
 
-    CATEGORY = "Sagado-Nodes"
+    CATEGORY = "Sagado-Nodes/llm"
     FUNCTION = "get_llama_cpp_model"
     DESCRIPTION = "Load a local model using llama-cpp-python and return the model object for subsequent calls"
 
@@ -140,7 +140,7 @@ class GetLlmResponseNode:
     RETURN_TYPES = ("STRING", "STRING")
     RETURN_NAMES = ("response_message", "full_response")
 
-    CATEGORY = "Sagado-Nodes"
+    CATEGORY = "Sagado-Nodes/llm"
     FUNCTION = "get_llm_response"
     DESCRIPTION = "Get response from the provided llama.cpp model"
 
@@ -194,7 +194,7 @@ class GetLlamaVLChatHandlerNode:
 
     RETURN_TYPES = ("MODEL",)
     RETURN_NAMES = ("chat_handler",)
-    CATEGORY = "Sagado-Nodes"
+    CATEGORY = "Sagado-Nodes/llm"
     FUNCTION = "get_chat_handler"
     DESCRIPTION = "Get the appropriate llama chat-handler for VL models"
 
@@ -230,7 +230,7 @@ class ImageToPNGDataURINode:
 
     RETURN_TYPES = ("STRING", "STRING")
     RETURN_NAMES = ("data_uri", "base64_string")
-    CATEGORY = "Sagado-Nodes"
+    CATEGORY = "Sagado-Nodes/llm"
     FUNCTION = "encode_to_png_uri"
     DESCRIPTION = "Converts a ComfyUI image to a PNG Data URI (data:image/png;base64,...)."
 

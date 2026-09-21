@@ -1,7 +1,11 @@
 from .nodes.nodes import *
 from .nodes.llm_nodes import OllamaNode, GetLlamaCppModelNode, GetLlmResponseNode, GetLlamaVLChatHandlerNode, ImageToPNGDataURINode
+from .nodes.wildcards import WildcardProcessor
+
+WEB_DIRECTORY = "./web"
 
 NODE_CLASS_MAPPINGS = {
+    "SGD_Wildcard_Processor": WildcardProcessor,
     "SGD_Image_Loader": ImageLoaderNode,
     "SGD_Get_Num_Frames": GetNumFramesNode,
     "SGD_Get_Resolution": GetResolutionNode,
@@ -19,6 +23,7 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
+    "SGD_Wildcard_Processor": "Wildcard Processor",
     "SGD_Image_Loader": "Image Loader",
     "SGD_Get_Num_Frames": "Get Num Frames",
     "SGD_Get_Resolution": "Get Resolution",
