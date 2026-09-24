@@ -64,11 +64,11 @@ def read_wildcard_dict(wildcard_path):
                     with open(file_path, 'r', encoding="UTF-8", errors="ignore") as f:
                         yaml_data = yaml.load(f, Loader=yaml.FullLoader)
                 if yaml_data:
-                    # Use the yaml file's directory-relative prefix so nested yaml keys
-                    # reflect their path (e.g. subdir/colors.yaml key "warm" → "subdir/colors/warm")
-                    prefix = wildcard_normalize(os.path.splitext(rel_path)[0])
+                    dir_part = os.path.dirname(rel_path)
+                    prefix = wildcard_normalize(dir_part) if dir_part else None
                     for k, v in yaml_data.items():
-                        _read_wildcard(f"{prefix}/{k}", v)
+                        key = f"{prefix}/{k}" if prefix else k
+                        _read_wildcard(key, v)
 
 
 def wildcard_load():
