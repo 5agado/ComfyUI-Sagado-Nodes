@@ -208,7 +208,7 @@ def process(text, seed=None):
 
                 select_count = calc_count(calc_max(len(options), select_range[1]), select_range[0], random_gen)
 
-            if select_count > len(options) or total_prob <= 1:
+            if select_count > len(options) or total_prob < 1:
                 random_gen.shuffle(options)
                 selected_items = options
             else:
