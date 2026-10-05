@@ -1,5 +1,5 @@
 from .nodes.nodes import *
-from .nodes.llm_nodes import OllamaNode, GetLlamaCppModelNode, GetLlmResponseNode, GetLlamaVLChatHandlerNode, ImageToPNGDataURINode
+from .nodes.llm_nodes import OllamaNode, GetLlamaCppModelNode, GetLlmResponseNode, GetLlamaVLChatHandlerNode, ImageToPNGDataURINode, CallLLMAPINode
 from .nodes.wildcards import WildcardProcessor
 
 WEB_DIRECTORY = "./web"
@@ -21,6 +21,7 @@ NODE_CLASS_MAPPINGS = {
     "SGD_Get_Llama_VL_Chat_Handler": GetLlamaVLChatHandlerNode,
     "SGD_Get_Llm_Response": GetLlmResponseNode,
     "SGD_Image_To_PNG_Data_URI": ImageToPNGDataURINode,
+    "SGD_Call_LLM_API": CallLLMAPINode,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -40,4 +41,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SGD_Get_Llama_VL_Chat_Handler": "Get Llama VL Chat Handler",
     "SGD_Get_Llm_Response": "Get LLM Response",
     "SGD_Image_To_PNG_Data_URI": "Image to PNG Data URI",
+    "SGD_Call_LLM_API": "Call LLM API",
 }

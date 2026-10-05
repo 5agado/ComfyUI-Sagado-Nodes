@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 import io
+import os
 import base64
 
 thinking_model_options = {
@@ -217,6 +218,66 @@ class GetLlamaVLChatHandlerNode:
         handler = handler_cls(clip_model_path=str(model_path), image_min_tokens=image_min_tokens)
 
         return (handler,)
+
+
+GROK_MODELS = [
+    "grok-4.3",
+]
+
+class CallLLMAPINode:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "model_name": (GROK_MODELS, {"default": "grok-4.3"}),
+                "prompt": ("STRING", {"default": "", "multiline": True}),
+                "reasoning_effort": (["none", "low", "medium", "high"], {"default": "none"}),
+                "max_tokens": ("INT", {"default": 2048, "min": -1, "max": 131072, "step": 128}),
+            },
+            "optional": {
+                "image_url": ("STRING", {"default": ""}),
+                "image_base64": ("STRING", {"default": ""}),
+            }
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("response",)
+
+    CATEGORY = "Sagado-Nodes/llm"
+    FUNCTION = "get_response"
+    DESCRIPTION = "Call an LLM API and return the text response"
+
+    def get_response(self, model_name, prompt, reasoning_effort, max_tokens, image_url="", image_base64=""):
+        from openai import OpenAI
+
+        api_key = os.environ.get("XAI_API_KEY")
+        if not api_key:
+            raise ValueError("XAI_API_KEY environment variable is not set")
+
+        client = OpenAI(api_key=api_key, base_url="https://api.x.ai/v1")
+
+        if image_url or image_base64:
+            img_src = image_base64 if image_base64.startswith("data:") else f"data:image/png;base64,{image_base64}" if image_base64 else image_url
+            content = [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": img_src},
+            ]
+        else:
+            content = prompt
+
+        try:
+            response = client.responses.create(
+                model=model_name,
+                reasoning={"effort": reasoning_effort},
+                input=content,
+                store=False,
+                max_output_tokens=max_tokens,
+            )
+        except Exception as e:
+            print(f"Error calling LLM API: {e}")
+            raise e
+
+        return (response.output_text,)
 
 
 class ImageToPNGDataURINode:
