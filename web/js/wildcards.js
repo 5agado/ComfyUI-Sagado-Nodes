@@ -12,6 +12,72 @@ async function load_wildcards() {
 
 load_wildcards();
 
+function addPreviewWidget(node) {
+	const PREVIEW_HEIGHT = 84;
+	let expanded = false;
+	let container = null; // the div ComfyUI wraps around the DOM widget element
+
+	// Hidden serialized widget — holds the value so it survives save/load
+	const storeWidget = node.addWidget("customtext", "sgd_preview_text", "", () => {});
+	storeWidget.inputEl = document.createElement("textarea");
+	storeWidget.inputEl.style.display = "none";
+	storeWidget.element = storeWidget.inputEl;
+	storeWidget.computeSize = () => [0, -4];
+
+	// Read-only textarea passed to addDOMWidget
+	const el = document.createElement("textarea");
+	el.className = "comfy-multiline-input";
+	el.readOnly = true;
+	el.placeholder = "Preview appears after execution…";
+	el.style.cssText = "resize:none;opacity:0.75;cursor:default;box-sizing:border-box;width:100%;height:100%;";
+
+	const domWidget = node.addDOMWidget("sgd_preview_dom", "customtext", el, {
+		getValue() { return storeWidget.value; },
+		setValue(v) {
+			storeWidget.value = v ?? "";
+			el.value = v ?? "";
+		},
+		getMinHeight() { return expanded ? PREVIEW_HEIGHT : 0; },
+	});
+	domWidget.serialize = false;
+	domWidget.computeSize = () => [0, expanded ? PREVIEW_HEIGHT : 0];
+
+	// Grab container after addDOMWidget has attached it to the DOM
+	requestAnimationFrame(() => {
+		container = el.parentElement;
+		if (container) container.style.display = "none";
+	});
+
+	// Toggle button
+	const toggleWidget = node.addWidget("button", "▶ Preview", null, () => {
+		expanded = !expanded;
+		toggleWidget.name = expanded ? "▼ Preview" : "▶ Preview";
+
+		// Hide/show via the container ComfyUI owns, not the raw element
+		const target = container ?? el;
+		target.style.display = expanded ? "" : "none";
+
+		if (expanded) {
+			node.size[1] += PREVIEW_HEIGHT;
+		} else {
+			const minH = node.computeSize()[1];
+			node.size[1] = Math.max(minH, node.size[1] - PREVIEW_HEIGHT);
+		}
+		app.graph.setDirtyCanvas(true, true);
+	});
+	toggleWidget.serialize = false;
+
+	return {
+		setPreview(text) {
+			storeWidget.value = text;
+			el.value = text;
+		},
+		restore() {
+			if (storeWidget.value) el.value = storeWidget.value;
+		},
+	};
+}
+
 app.registerExtension({
 	name: "Sagado.WildcardProcessor",
 
@@ -91,5 +157,15 @@ app.registerExtension({
 		});
 
 		node.widgets[chooser_id].serializeValue = () => WILDCARD_LABEL;
+
+		// Preview widget
+		const preview = addPreviewWidget(node);
+		// Restore saved preview text after ComfyUI has populated widgets_values
+		requestAnimationFrame(() => preview.restore());
+
+		node.onExecuted = (output) => {
+			const text = output?.text?.[0] ?? Object.values(output ?? {})?.[0]?.[0] ?? null;
+			if (text !== null) preview.setPreview(text);
+		};
 	},
 });

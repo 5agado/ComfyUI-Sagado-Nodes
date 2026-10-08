@@ -309,9 +309,11 @@ class WildcardProcessor:
     RETURN_NAMES = ("text",)
     FUNCTION = "doit"
     CATEGORY = "Sagado-Nodes/text"
+    OUTPUT_NODE = True
 
     def doit(self, text, seed, wildcard_chooser):
-        return (process(text, seed),)
+        processed = process(text, seed)
+        return {"ui": {"text": [processed]}, "result": (processed,)}
 
 
 # ---------- API routes ----------
