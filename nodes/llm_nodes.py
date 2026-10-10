@@ -30,6 +30,7 @@ class OllamaNode:
                 "temperature": ("FLOAT", {"default": 0.6, "min": 0.0, "max": 1.0, "step": 0.1}),
                 "max_tokens": ("INT", {"default": 2048, "min": -1, "max": 32000, "step": 128}),
                 "think": ("BOOLEAN", {"default": False}),
+                "n_ctx": ("INT", {"default": 8000, "min": 512, "max": 131072, "step": 512}),
             },
             "optional": {
                 "image_path": ("STRING", {"default": ""}),
@@ -44,11 +45,8 @@ class OllamaNode:
     FUNCTION = "get_response"
     DESCRIPTION = "Util to get response from local Ollama models"
 
-    def get_response(self, model_name, prompt, temperature, max_tokens, think, image_path, image_base64):
-        if think:
-            llm_options = thinking_model_options
-        else:
-            llm_options = standard_model_options
+    def get_response(self, model_name, prompt, temperature, max_tokens, think, n_ctx, image_path, image_base64):
+        llm_options = {**(thinking_model_options if think else standard_model_options), "num_ctx": n_ctx}
         response = get_ollama_response(
             model_name, prompt, image_path or None, image_base64 or None, temperature, max_tokens,
             enable_thinking=think, **llm_options

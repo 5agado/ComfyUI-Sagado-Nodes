@@ -1,13 +1,13 @@
 import sys
+import subprocess
+import tempfile
+import json
 import numpy as np
 from pathlib import Path
 import torch
 from PIL import Image, ImageOps
 import comfy
 
-from server import PromptServer
-
-MESSAGE_TYPE = "sagado_nodes.textmessage"
 
 class ImageLoaderNode:
     @classmethod
@@ -149,39 +149,129 @@ def load_image(image_path):
     return image, mask
 
 
-def get_media(folder_path, media_idx, random_idx, seed, exts, sort_by="name", reverse=False):
-    media = []
-    media_path = ''
+def get_media(folder_path, media_idx, random_idx, seed, exts, sort_by="name", reverse=False, prefix=""):
     if not folder_path or not Path(folder_path).is_dir():
-        print("Invalid folder path provided.")
-        PromptServer.instance.send_sync(MESSAGE_TYPE, {"message": "Invalid folder path provided."})
+        raise ValueError(f"Invalid folder path: '{folder_path}'")
+    media = []
     for ext in exts:
-        media.extend(Path(folder_path).glob(f"*.{ext}"))
+        media.extend(Path(folder_path).glob(f"{prefix}*.{ext}"))
     if not media:
-        print(f"No media found in the specified folder ({str(exts)}).")
-        PromptServer.instance.send_sync(MESSAGE_TYPE, {"message": f"No media found in the specified folder ({str(exts)})."})
+        raise ValueError(f"No files found in '{folder_path}' matching {exts} with prefix '{prefix}'")
+    print(f"Found {len(media)} files in '{folder_path}' (exts={exts}, prefix='{prefix}')")
+
+    np.random.seed(seed)
+    if sort_by == 'shuffle':
+        np.random.shuffle(media)
+    elif sort_by == "date":
+        media.sort(key=lambda p: p.stat().st_ctime)
     else:
-        print(f"Found {len(media)} media in the specified folder ({str(exts)}).")
-        np.random.seed(seed)
-        if sort_by == 'shuffle':
-            np.random.shuffle(media)
-        # Sort media by the selected option
-        elif sort_by == "date":
-            media.sort(key=lambda p: p.stat().st_ctime)
-        else:  # Default to name
-            media.sort(key=lambda p: p.name.lower())
-        if reverse:
-            media.reverse()
-        if not random_idx:
-            if media_idx >= len(media):
-                print(f"Index {media_idx} out of range, out of {len(media)} media found.")
-                PromptServer.instance.send_sync(MESSAGE_TYPE,
-                                                {"message":f"Index {media_idx} out of range, out of {len(media)} media found."})
-            else:
-                media_path = str(media[media_idx])
-        else:
-            media_path = media[np.random.choice(len(media))]
-    return media_path
+        media.sort(key=lambda p: p.name.lower())
+
+    if reverse:
+        media.reverse()
+    if random_idx:
+        return str(media[np.random.choice(len(media))])
+    if media_idx >= len(media):
+        raise ValueError(f"Index {media_idx} out of range ({len(media)} files found)")
+    return str(media[media_idx])
+
+
+class TextLoaderNode:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "folder_path": ("STRING", {"default": ""}),
+            },
+            "optional": {
+                "file_idx": ("INT", {"default": 0, "control_after_generate": True}),
+                "random_idx": ("BOOLEAN", {"default": False}),
+                "sort_by": ("STRING", {"default": "date", "choices": ["name", "date", "shuffle"]}),
+                "reverse": ("BOOLEAN", {"default": False}),
+                "seed": ("INT", {"default": 42}),
+                "extension": (["all", "txt", "md", "json"], {"default": "all"}),
+                "prefix": ("STRING", {"default": ""}),
+            }
+        }
+
+    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("text", "file_path")
+    CATEGORY = "Sagado-Nodes"
+    FUNCTION = "load_text_file"
+    DESCRIPTION = "Load text files (.txt, .md, .json) from a folder"
+
+    def load_text_file(self, folder_path, file_idx, random_idx, sort_by, reverse, seed, extension="all", prefix=""):
+        exts = ["txt", "md", "json"] if extension == "all" else [extension]
+        file_path = get_media(folder_path, file_idx, random_idx, seed, exts=exts,
+                              sort_by=sort_by, reverse=reverse, prefix=prefix)
+        if file_path:
+            try:
+                text = Path(file_path).read_text(encoding="utf-8")
+            except Exception as e:
+                print(f"Error reading file {file_path}: {e}")
+                text = ""
+            return text, str(file_path)
+        return "", str(file_path)
+
+
+class VideoThumbnailGridNode:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "video_path": ("STRING", {"default": ""}),
+                "rows": ("INT", {"default": 3, "min": 1, "max": 10}),
+                "cols": ("INT", {"default": 3, "min": 1, "max": 10}),
+                "max_height": ("INT", {"default": 1024, "min": 640, "max": 2048, "step": 128}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    RETURN_NAMES = ("grid",)
+    CATEGORY = "Sagado-Nodes"
+    FUNCTION = "make_thumbnail_grid"
+    DESCRIPTION = "Extract evenly-spaced frames from a video and arrange them in a thumbnail grid"
+
+    def make_thumbnail_grid(self, video_path, rows, cols, max_height):
+        n_frames = rows * cols
+
+        # Get video duration via ffprobe
+        probe = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", video_path],
+            capture_output=True, text=True,
+        )
+        duration = float(json.loads(probe.stdout)["format"]["duration"])
+
+        # Sample timestamps evenly across the video (skip the very start/end)
+        step = duration / (n_frames + 1)
+        timestamps = [step * (i + 1) for i in range(n_frames)]
+
+        # Extract frames into a temp dir
+        with tempfile.TemporaryDirectory() as tmp:
+            frames = []
+            for i, ts in enumerate(timestamps):
+                out_path = Path(tmp) / f"frame_{i:04d}.png"
+                subprocess.run(
+                    ["ffmpeg", "-ss", str(ts), "-i", video_path,
+                     "-frames:v", "1", "-q:v", "2", str(out_path),
+                     "-y", "-loglevel", "error"],
+                    check=True,
+                )
+                frames.append(Image.open(out_path).convert("RGB"))
+
+            # Determine cell size: scale so grid height == max_height
+            cell_h = max_height // rows
+            cell_w = round(cell_h * frames[0].width / frames[0].height)
+
+            grid_img = Image.new("RGB", (cell_w * cols, cell_h * rows))
+            for idx, frame in enumerate(frames):
+                frame = frame.resize((cell_w, cell_h), Image.LANCZOS)
+                r, c = divmod(idx, cols)
+                grid_img.paste(frame, (c * cell_w, r * cell_h))
+
+        image = np.array(grid_img).astype(np.float32) / 255.0
+        image = torch.from_numpy(image)[None,]
+        return (image,)
 
 
 class FilmGrainNode:
