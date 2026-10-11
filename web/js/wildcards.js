@@ -13,16 +13,11 @@ async function load_wildcards() {
 load_wildcards();
 
 function addPreviewWidget(node) {
-	const PREVIEW_HEIGHT = 84;
+	const PREVIEW_RATIO = 0.35; // fraction of node height used for the preview
 	let expanded = false;
 	let container = null; // the div ComfyUI wraps around the DOM widget element
 
-	// Hidden serialized widget — holds the value so it survives save/load
-	const storeWidget = node.addWidget("customtext", "sgd_preview_text", "", () => {});
-	storeWidget.inputEl = document.createElement("textarea");
-	storeWidget.inputEl.style.display = "none";
-	storeWidget.element = storeWidget.inputEl;
-	storeWidget.computeSize = () => [0, -4];
+	const previewHeight = () => Math.round(node.size[1] * PREVIEW_RATIO);
 
 	// Read-only textarea passed to addDOMWidget
 	const el = document.createElement("textarea");
@@ -32,15 +27,12 @@ function addPreviewWidget(node) {
 	el.style.cssText = "resize:none;opacity:0.75;cursor:default;box-sizing:border-box;width:100%;height:100%;";
 
 	const domWidget = node.addDOMWidget("sgd_preview_dom", "customtext", el, {
-		getValue() { return storeWidget.value; },
-		setValue(v) {
-			storeWidget.value = v ?? "";
-			el.value = v ?? "";
-		},
-		getMinHeight() { return expanded ? PREVIEW_HEIGHT : 0; },
+		getValue() { return node.properties?.sgd_preview ?? ""; },
+		setValue(v) { el.value = v ?? ""; },
+		getMinHeight() { return expanded ? previewHeight() : 0; },
 	});
 	domWidget.serialize = false;
-	domWidget.computeSize = () => [0, expanded ? PREVIEW_HEIGHT : 0];
+	domWidget.computeSize = () => [0, expanded ? previewHeight() : 0];
 
 	// Grab container after addDOMWidget has attached it to the DOM
 	requestAnimationFrame(() => {
@@ -53,15 +45,13 @@ function addPreviewWidget(node) {
 		expanded = !expanded;
 		toggleWidget.name = expanded ? "▼ Preview" : "▶ Preview";
 
-		// Hide/show via the container ComfyUI owns, not the raw element
 		const target = container ?? el;
 		target.style.display = expanded ? "" : "none";
 
 		if (expanded) {
-			node.size[1] += PREVIEW_HEIGHT;
+			node.size[1] = Math.round(node.size[1] / (1 - PREVIEW_RATIO));
 		} else {
-			const minH = node.computeSize()[1];
-			node.size[1] = Math.max(minH, node.size[1] - PREVIEW_HEIGHT);
+			node.size[1] = Math.max(node.computeSize()[1], Math.round(node.size[1] * (1 - PREVIEW_RATIO)));
 		}
 		app.graph.setDirtyCanvas(true, true);
 	});
@@ -69,11 +59,13 @@ function addPreviewWidget(node) {
 
 	return {
 		setPreview(text) {
-			storeWidget.value = text;
+			if (!node.properties) node.properties = {};
+			node.properties.sgd_preview = text;
 			el.value = text;
 		},
 		restore() {
-			if (storeWidget.value) el.value = storeWidget.value;
+			const saved = node.properties?.sgd_preview;
+			if (saved) el.value = saved;
 		},
 	};
 }
@@ -160,7 +152,7 @@ app.registerExtension({
 
 		// Preview widget
 		const preview = addPreviewWidget(node);
-		// Restore saved preview text after ComfyUI has populated widgets_values
+		// Restore saved preview text after ComfyUI has populated node.properties
 		requestAnimationFrame(() => preview.restore());
 
 		node.onExecuted = (output) => {
