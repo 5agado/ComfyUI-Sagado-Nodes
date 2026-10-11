@@ -22,6 +22,7 @@ class ImageLoaderNode:
                 "sort_by": ("STRING", {"default": "date", "choices": ["name", "date", "shuffle"]}),
                 "reverse": ("BOOLEAN", {"default": False}),
                 "seed": ("INT", {"default": 42}),
+                "prefix": ("STRING", {"default": ""}),
             }
         }
 
@@ -31,9 +32,9 @@ class ImageLoaderNode:
     FUNCTION = "get_image"
     DESCRIPTION = "Util to load images from a folder"
 
-    def get_image(self, folder_path, image_idx, random_idx, sort_by, reverse, seed):
+    def get_image(self, folder_path, image_idx, random_idx, sort_by, reverse, seed, prefix=""):
         image_path = get_media(folder_path, image_idx, random_idx, seed, exts=["png", "jpg", "jpeg", "webp"],
-                               sort_by=sort_by, reverse=reverse)
+                               sort_by=sort_by, reverse=reverse, prefix=prefix)
         if image_path:
             image, mask = load_image(image_path)
             return image, mask, image_path
@@ -54,6 +55,7 @@ class VideoLoaderNode:
                 "sort_by": ("STRING", {"default": "date", "choices": ["name", "date", "shuffle"]}),
                 "reverse": ("BOOLEAN", {"default": False}),
                 "seed": ("INT", {"default": 42}),
+                "prefix": ("STRING", {"default": ""}),
             }
         }
 
@@ -63,9 +65,9 @@ class VideoLoaderNode:
     FUNCTION = "get_video_path"
     DESCRIPTION = "Util to load videos from a folder"
 
-    def get_video_path(self, folder_path, video_idx, random_idx, sort_by, reverse, seed):
+    def get_video_path(self, folder_path, video_idx, random_idx, sort_by, reverse, seed, prefix=""):
         video_path = get_media(folder_path, video_idx, random_idx, seed, exts=["mp4", "mov", "avi", "mkv"],
-                               sort_by=sort_by, reverse=reverse)
+                               sort_by=sort_by, reverse=reverse, prefix=prefix)
 
         if video_path:
             # TODO load videos
@@ -417,6 +419,10 @@ class AnyListSelector:
                 "any_list": ("*",),
                 "index": ("INT", {"default": 0, "min": -sys.maxsize, "max": sys.maxsize, "step": 1}),
             },
+            "optional": {
+                "random_idx": ("BOOLEAN", {"default": False}),
+                "seed": ("INT", {"default": 42}),
+            },
         }
 
     # "*" allows the node to output any data type
@@ -427,13 +433,18 @@ class AnyListSelector:
     FUNCTION = "select_element"
     DESCRIPTION = "Select an element from a list by index, supporting negative indexing for reverse access"
 
-    def select_element(self, any_list, index):
-        i = index[0]
-        try:
-            selected = any_list[i]
-            return (selected,)
-        except IndexError:
-            raise IndexError(f"Index {i} is out of range for list of length {len(any_list)}.")
+    def select_element(self, any_list, index, random_idx=None, seed=None):
+        if random_idx and random_idx[0]:
+            s = seed[0] if seed else 42
+            np.random.seed(s)
+            selected = any_list[np.random.randint(len(any_list))]
+        else:
+            i = index[0]
+            try:
+                selected = any_list[i]
+            except IndexError:
+                raise IndexError(f"Index {i} is out of range for list of length {len(any_list)}.")
+        return (selected,)
 
 
 class StringSplitter:
