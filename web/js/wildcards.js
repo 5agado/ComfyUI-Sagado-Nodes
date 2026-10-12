@@ -13,11 +13,18 @@ async function load_wildcards() {
 load_wildcards();
 
 function addPreviewWidget(node) {
-	const PREVIEW_RATIO = 0.35; // fraction of node height used for the preview
+	const PREVIEW_RATIO = 0.35; // preview takes this fraction of total node height when expanded
 	let expanded = false;
-	let container = null; // the div ComfyUI wraps around the DOM widget element
 
-	const previewHeight = () => Math.round(node.size[1] * PREVIEW_RATIO);
+	// collapsedHeight is the node height without the preview.
+	// We persist it in node.properties so reload always restores the correct base.
+	const getCollapsedHeight = () => node.properties?.sgd_collapsed_height ?? node.size[1];
+	const saveCollapsedHeight = (h) => {
+		if (!node.properties) node.properties = {};
+		node.properties.sgd_collapsed_height = h;
+	};
+
+	const previewHeight = () => Math.round(getCollapsedHeight() / (1 - PREVIEW_RATIO) * PREVIEW_RATIO);
 
 	// Read-only textarea passed to addDOMWidget
 	const el = document.createElement("textarea");
@@ -34,25 +41,43 @@ function addPreviewWidget(node) {
 	domWidget.serialize = false;
 	domWidget.computeSize = () => [0, expanded ? previewHeight() : 0];
 
-	// Grab container after addDOMWidget has attached it to the DOM
+	// Enforce visibility on every redraw — zoom/pan re-show the container div
+	const enforceVisibility = () => {
+		const c = el.parentElement;
+		if (!c) return;
+		const want = expanded ? "" : "none";
+		if (c.style.display !== want) c.style.display = want;
+	};
+
+	const observer = new MutationObserver(enforceVisibility);
 	requestAnimationFrame(() => {
-		container = el.parentElement;
-		if (container) container.style.display = "none";
+		const c = el.parentElement;
+		if (c) {
+			observer.observe(c, { attributes: true, attributeFilter: ["style"] });
+			c.style.display = "none";
+		}
 	});
+
+	const origDraw = node.onDrawForeground?.bind(node);
+	node.onDrawForeground = function(...args) {
+		enforceVisibility();
+		origDraw?.(...args);
+	};
 
 	// Toggle button
 	const toggleWidget = node.addWidget("button", "▶ Preview", null, () => {
 		expanded = !expanded;
 		toggleWidget.name = expanded ? "▼ Preview" : "▶ Preview";
 
-		const target = container ?? el;
-		target.style.display = expanded ? "" : "none";
-
 		if (expanded) {
-			node.size[1] = Math.round(node.size[1] / (1 - PREVIEW_RATIO));
+			// Snapshot current (collapsed) height before growing
+			saveCollapsedHeight(node.size[1]);
+			node.size[1] = getCollapsedHeight() + previewHeight();
 		} else {
-			node.size[1] = Math.max(node.computeSize()[1], Math.round(node.size[1] * (1 - PREVIEW_RATIO)));
+			node.size[1] = getCollapsedHeight();
 		}
+
+		enforceVisibility();
 		app.graph.setDirtyCanvas(true, true);
 	});
 	toggleWidget.serialize = false;
@@ -66,6 +91,11 @@ function addPreviewWidget(node) {
 		restore() {
 			const saved = node.properties?.sgd_preview;
 			if (saved) el.value = saved;
+			// If the workflow was saved while expanded, collapse back to the
+			// stored base height so we start from a clean state
+			if (node.properties?.sgd_collapsed_height) {
+				node.size[1] = node.properties.sgd_collapsed_height;
+			}
 		},
 	};
 }
@@ -150,7 +180,9 @@ app.registerExtension({
 
 		node.widgets[chooser_id].serializeValue = () => WILDCARD_LABEL;
 
-		// Preview widget
+		// Preview widget — guard against nodeCreated firing twice on the same instance
+		if (node._sgd_preview_init) return;
+		node._sgd_preview_init = true;
 		const preview = addPreviewWidget(node);
 		// Restore saved preview text after ComfyUI has populated node.properties
 		requestAnimationFrame(() => preview.restore());
