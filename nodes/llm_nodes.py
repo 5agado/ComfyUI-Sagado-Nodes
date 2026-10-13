@@ -9,15 +9,19 @@ import base64
 thinking_model_options = {
     'top_p': 0.95,
     'top_k': 20,
-    'num_ctx': 32000,
-    'repeat_penalty': 1.1,
+    'min_p': 0.05,
+    'num_ctx': 32768,
+    'repeat_penalty': 1.0,
+    'presence_penalty': 0.0
 }
 
 standard_model_options = {
     'top_p': 0.8,
-    'top_k': 40,
-    'num_ctx': 8000,
-    'repeat_penalty': 1.0,
+    'top_k': 20,
+    'min_p': 0.0,
+    'num_ctx': 16384,
+    'repeat_penalty': 1.1,
+    'presence_penalty': 1.5
 }
 
 class OllamaNode:
@@ -30,7 +34,7 @@ class OllamaNode:
                 "temperature": ("FLOAT", {"default": 0.6, "min": 0.0, "max": 1.0, "step": 0.1}),
                 "max_tokens": ("INT", {"default": 2048, "min": -1, "max": 32000, "step": 128}),
                 "think": ("BOOLEAN", {"default": False}),
-                "n_ctx": ("INT", {"default": 8000, "min": 512, "max": 131072, "step": 512}),
+                "num_ctx": ("INT", {"default": 8192, "min": 1024, "max": 131072, "step": 512}),
             },
             "optional": {
                 "image_path": ("STRING", {"default": ""}),
@@ -86,7 +90,7 @@ class GetLlamaCppModelNode:
                 "model_name": ("STRING", {"default": ""}),
                 "models_dir_path": ("STRING", {"default": ""}),
                 "chat_format": ("STRING", {"default": ""}),
-                "n_ctx": ("INT", {"default": 4094, "min": -1, "max": 128000, "step": 256}),
+                "num_ctx": ("INT", {"default": 4094, "min": -1, "max": 128000, "step": 256}),
             },
             "optional": {
                 "chat_handler": ("MODEL",),
@@ -101,7 +105,7 @@ class GetLlamaCppModelNode:
     DESCRIPTION = "Load a local model using llama-cpp-python and return the model object for subsequent calls"
 
 
-    def get_llama_cpp_model(self, model_name, models_dir_path, chat_format, n_ctx, chat_handler=None):
+    def get_llama_cpp_model(self, model_name, models_dir_path, chat_format, num_ctx, chat_handler=None):
         from llama_cpp import Llama
         model_path = Path(models_dir_path) / model_name
         if not model_path.exists():
@@ -113,7 +117,7 @@ class GetLlamaCppModelNode:
             chat_handler=chat_handler,  # Injected vision handler
             verbose=False,
             n_gpu_layers=-1,
-            n_ctx = n_ctx,
+            n_ctx = num_ctx,
         )
         return (model,)
 
