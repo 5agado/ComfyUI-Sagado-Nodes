@@ -417,7 +417,8 @@ class AnyListSelector:
         return {
             "required": {
                 "any_list": ("*",),
-                "index": ("INT", {"default": 0, "min": -sys.maxsize, "max": sys.maxsize, "step": 1}),
+                "index": ("INT", {"default": 0, "min": -sys.maxsize, "max": sys.maxsize, "step": 1,
+                                  "control_after_generate": True,}),
             },
             "optional": {
                 "random_idx": ("BOOLEAN", {"default": False}),

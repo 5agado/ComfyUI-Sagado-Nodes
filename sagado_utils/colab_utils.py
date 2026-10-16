@@ -21,13 +21,16 @@ def download_model(url, rename = None, civitai_api_key = None, use_curl = False,
     else:
         token_url = f"{url}{'&' if '?' in url else '?'}token={civitai_api_key}"
         if use_curl:
-            cmd = f'curl -LJ "{token_url}"'
+            cmd = f'curl -fLJ "{token_url}"'
             cmd += f' -o {rename}' if rename else ' -O'
         else:
             cmd = f'{base_aria_command} "{token_url}"'
             cmd += f' -o {rename}' if rename else ''
     # run the command
-    subprocess.run(cmd, shell=True, check=True)
+    try:
+        subprocess.run(cmd, shell=True, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f'Error downloading model from {url}: {e}')
 
 
 def download_lora(base_dir: Path, lora_config: Dict, base_model, civitai_api_key, use_curl):

@@ -49,8 +49,8 @@ class OllamaNode:
     FUNCTION = "get_response"
     DESCRIPTION = "Util to get response from local Ollama models"
 
-    def get_response(self, model_name, prompt, temperature, max_tokens, think, n_ctx, image_path, image_base64):
-        llm_options = {**(thinking_model_options if think else standard_model_options), "num_ctx": n_ctx}
+    def get_response(self, model_name, prompt, temperature, max_tokens, think, num_ctx, image_path, image_base64):
+        llm_options = {**(thinking_model_options if think else standard_model_options), "num_ctx": num_ctx}
         response = get_ollama_response(
             model_name, prompt, image_path or None, image_base64 or None, temperature, max_tokens,
             enable_thinking=think, **llm_options
