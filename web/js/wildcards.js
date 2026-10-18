@@ -12,93 +12,16 @@ async function load_wildcards() {
 
 load_wildcards();
 
-function addPreviewWidget(node) {
-	const PREVIEW_RATIO = 0.35; // preview takes this fraction of total node height when expanded
-	let expanded = false;
-
-	// collapsedHeight is the node height without the preview.
-	// We persist it in node.properties so reload always restores the correct base.
-	const getCollapsedHeight = () => node.properties?.sgd_collapsed_height ?? node.size[1];
-	const saveCollapsedHeight = (h) => {
-		if (!node.properties) node.properties = {};
-		node.properties.sgd_collapsed_height = h;
-	};
-
-	const previewHeight = () => Math.round(getCollapsedHeight() / (1 - PREVIEW_RATIO) * PREVIEW_RATIO);
-
-	// Read-only textarea passed to addDOMWidget
-	const el = document.createElement("textarea");
-	el.className = "comfy-multiline-input";
-	el.readOnly = true;
-	el.placeholder = "Preview appears after execution…";
-	el.style.cssText = "resize:none;opacity:0.75;cursor:default;box-sizing:border-box;width:100%;height:100%;";
-
-	const domWidget = node.addDOMWidget("sgd_preview_dom", "customtext", el, {
-		getValue() { return node.properties?.sgd_preview ?? ""; },
-		setValue(v) { el.value = v ?? ""; },
-		getMinHeight() { return expanded ? previewHeight() : 0; },
-	});
-	domWidget.serialize = false;
-	domWidget.computeSize = () => [0, expanded ? previewHeight() : 0];
-
-	// Enforce visibility on every redraw — zoom/pan re-show the container div
-	const enforceVisibility = () => {
-		const c = el.parentElement;
-		if (!c) return;
-		const want = expanded ? "" : "none";
-		if (c.style.display !== want) c.style.display = want;
-	};
-
-	const observer = new MutationObserver(enforceVisibility);
-	requestAnimationFrame(() => {
-		const c = el.parentElement;
-		if (c) {
-			observer.observe(c, { attributes: true, attributeFilter: ["style"] });
-			c.style.display = "none";
-		}
-	});
-
-	const origDraw = node.onDrawForeground?.bind(node);
-	node.onDrawForeground = function(...args) {
-		enforceVisibility();
-		origDraw?.(...args);
-	};
-
-	// Toggle button
-	const toggleWidget = node.addWidget("button", "▶ Preview", null, () => {
-		expanded = !expanded;
-		toggleWidget.name = expanded ? "▼ Preview" : "▶ Preview";
-
-		if (expanded) {
-			// Snapshot current (collapsed) height before growing
-			saveCollapsedHeight(node.size[1]);
-			node.size[1] = getCollapsedHeight() + previewHeight();
-		} else {
-			node.size[1] = getCollapsedHeight();
-		}
-
-		enforceVisibility();
-		app.graph.setDirtyCanvas(true, true);
-	});
-	toggleWidget.serialize = false;
-
-	return {
-		setPreview(text) {
-			if (!node.properties) node.properties = {};
-			node.properties.sgd_preview = text;
-			el.value = text;
-		},
-		restore() {
-			const saved = node.properties?.sgd_preview;
-			if (saved) el.value = saved;
-			// If the workflow was saved while expanded, collapse back to the
-			// stored base height so we start from a clean state
-			if (node.properties?.sgd_collapsed_height) {
-				node.size[1] = node.properties.sgd_collapsed_height;
-			}
-		},
-	};
-}
+// Server resolved the wildcard — update the populated_text widget in the UI
+api.addEventListener("sagado/wildcard-feedback", ({ detail }) => {
+	const node = app.graph.getNodeById(parseInt(detail.node_id));
+	if (!node) return;
+	const w = node.widgets?.find(w => w.name === "populated_text");
+	if (w) {
+		w.value = detail.populated_text;
+		if (w.inputEl) w.inputEl.value = detail.populated_text;
+	}
+});
 
 app.registerExtension({
 	name: "Sagado.WildcardProcessor",
@@ -106,38 +29,125 @@ app.registerExtension({
 	nodeCreated(node, app) {
 		if (node.comfyClass !== "SGD_Wildcard_Processor") return;
 
-		// text=0, seed=1, control_after_generate=2 (injected by ComfyUI), wildcard_chooser=3
+		// text=0, seed=1, control_after_generate=2, wildcard_chooser=3, populated_text=4
 		const tbox_id    = 0;
 		const chooser_id = 3;
 
 		if (!node.widgets || node.widgets.length <= chooser_id) return;
 
-		node._wildcard_value  = WILDCARD_LABEL;
-		node._cursor_start    = null;
-		node._cursor_end      = null;
+		// --- populated_text: read-only, collapsible ---
+		const populatedWidget = node.widgets.find(w => w.name === "populated_text");
+		if (populatedWidget?.inputEl) {
+			populatedWidget.inputEl.readOnly = true;
+			populatedWidget.inputEl.placeholder = "Resolved text (populated before execution)";
+			populatedWidget.inputEl.style.opacity = "0.75";
+			populatedWidget.inputEl.style.cursor = "default";
+		}
 
-		// Wait for the textarea element to be available, then track cursor
+		const PREVIEW_RATIO = 0.35;
+		let expanded = false;
+
+		const getCollapsedHeight = () => node.properties?.sgd_collapsed_height ?? node.size[1];
+		const saveCollapsedHeight = (h) => {
+			if (!node.properties) node.properties = {};
+			node.properties.sgd_collapsed_height = h;
+		};
+		const previewHeight = () => Math.round(getCollapsedHeight() / (1 - PREVIEW_RATIO) * PREVIEW_RATIO);
+
+		// Start collapsed
+		if (populatedWidget) {
+			populatedWidget.computeSize = () => [0, expanded ? previewHeight() : 0];
+		}
+
+		const enforceVisibility = () => {
+			if (!populatedWidget?.inputEl) return;
+			const c = populatedWidget.inputEl.parentElement;
+			if (!c) return;
+			const want = expanded ? "" : "none";
+			if (c.style.display !== want) c.style.display = want;
+		};
+
+		// MutationObserver to prevent ComfyUI from re-showing the widget on zoom/pan
+		requestAnimationFrame(() => {
+			const c = populatedWidget?.inputEl?.parentElement;
+			if (c) {
+				new MutationObserver(enforceVisibility)
+					.observe(c, { attributes: true, attributeFilter: ["style"] });
+				enforceVisibility(); // use current expanded state, don't hard-code "none"
+			}
+		});
+
+		const origDraw = node.onDrawForeground?.bind(node);
+		node.onDrawForeground = function(...args) {
+			enforceVisibility();
+			origDraw?.(...args);
+		};
+
+		// Toggle button — added after populated_text then spliced to appear before it,
+		// so the button sits above and the textarea expands below (at the node bottom).
+		const setExpanded = (val) => {
+			expanded = val;
+			if (!node.properties) node.properties = {};
+			node.properties.sgd_expanded = val;
+			toggleWidget.name = expanded ? "▼ Preview" : "▶ Preview";
+		};
+
+		const toggleWidget = node.addWidget("button", "▶ Preview", null, () => {
+			if (!expanded) {
+				saveCollapsedHeight(node.size[1]);
+				setExpanded(true);
+				node.size[1] = getCollapsedHeight() + previewHeight();
+			} else {
+				setExpanded(false);
+				node.size[1] = getCollapsedHeight();
+			}
+
+			enforceVisibility();
+			app.graph.setDirtyCanvas(true, true);
+		});
+		toggleWidget.serialize = false;
+
+
+		// Restore state on load
+		const origConfigure = node.onConfigure?.bind(node);
+		node.onConfigure = function(info) {
+			origConfigure?.(info);
+			if (node.properties) delete node.properties.sgd_preview;
+			const wasExpanded = node.properties?.sgd_expanded ?? false;
+			expanded = wasExpanded;
+			toggleWidget.name = wasExpanded ? "▼ Preview" : "▶ Preview";
+			if (node.properties?.sgd_collapsed_height) {
+				node.size[1] = wasExpanded
+					? node.properties.sgd_collapsed_height + previewHeight()
+					: node.properties.sgd_collapsed_height;
+			}
+			// widgets_values are applied AFTER onConfigure, so read directly from info
+			// order: text(0), seed(1), control_after_generate(2), wildcard_chooser(3), populated_text(4)
+			const savedValue = info?.widgets_values?.[4];
+			if (savedValue && populatedWidget) {
+				populatedWidget.value = savedValue;
+				if (populatedWidget.inputEl) populatedWidget.inputEl.value = savedValue;
+			}
+			requestAnimationFrame(enforceVisibility);
+		};
+
+		// --- wildcard chooser ---
+		node._wildcard_value = WILDCARD_LABEL;
+		node._cursor_start   = null;
+		node._cursor_end     = null;
+
 		const attachCursorTracking = () => {
 			const el = node.widgets[tbox_id].element;
 			if (!el) return;
-
-			el.addEventListener("blur", () => {
-				node._cursor_start = el.selectionStart;
-				node._cursor_end   = el.selectionEnd;
-			});
-
-			// Also track on keyup/mouseup so position is fresh even without blur
+			el.addEventListener("blur",    () => { node._cursor_start = el.selectionStart; node._cursor_end = el.selectionEnd; });
 			el.addEventListener("keyup",   () => { node._cursor_start = el.selectionStart; node._cursor_end = el.selectionEnd; });
 			el.addEventListener("mouseup", () => { node._cursor_start = el.selectionStart; node._cursor_end = el.selectionEnd; });
 		};
-
-		// element may not exist yet on nodeCreated; try immediately then once on next frame
 		attachCursorTracking();
 		requestAnimationFrame(attachCursorTracking);
 
 		node.widgets[chooser_id].callback = (value, canvas, node, pos, e) => {
 			if (!node || node._wildcard_value === WILDCARD_LABEL) return;
-
 			const insert = node._wildcard_value;
 			const tbox   = node.widgets[tbox_id];
 			const el     = tbox.element;
@@ -145,19 +155,15 @@ app.registerExtension({
 			const end    = node._cursor_end;
 
 			if (el && start !== null && end !== null) {
-				// Insert at saved cursor position, replacing any saved selection
 				const before = tbox.value.slice(0, start);
 				const after  = tbox.value.slice(end);
 				tbox.value   = before + insert + after;
-
-				// Restore cursor after inserted text
 				const newPos = start + insert.length;
 				el.focus();
 				el.setSelectionRange(newPos, newPos);
 				node._cursor_start = newPos;
 				node._cursor_end   = newPos;
 			} else {
-				// Fallback: append
 				if (tbox.value !== "") tbox.value += ", ";
 				tbox.value += insert;
 			}
@@ -165,10 +171,7 @@ app.registerExtension({
 
 		Object.defineProperty(node.widgets[chooser_id], "value", {
 			configurable: true,
-			set(value) {
-				if (value !== WILDCARD_LABEL)
-					node._wildcard_value = value;
-			},
+			set(value) { if (value !== WILDCARD_LABEL) node._wildcard_value = value; },
 			get() { return WILDCARD_LABEL; },
 		});
 
@@ -179,17 +182,5 @@ app.registerExtension({
 		});
 
 		node.widgets[chooser_id].serializeValue = () => WILDCARD_LABEL;
-
-		// Preview widget — guard against nodeCreated firing twice on the same instance
-		if (node._sgd_preview_init) return;
-		node._sgd_preview_init = true;
-		const preview = addPreviewWidget(node);
-		// Restore saved preview text after ComfyUI has populated node.properties
-		requestAnimationFrame(() => preview.restore());
-
-		node.onExecuted = (output) => {
-			const text = output?.text?.[0] ?? Object.values(output ?? {})?.[0]?.[0] ?? null;
-			if (text !== null) preview.setPreview(text);
-		};
 	},
 });

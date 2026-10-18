@@ -302,7 +302,8 @@ class WildcardProcessor:
                     [WILDCARD_CHOOSER_PLACEHOLDER] + [f"__{k}__" for k in get_wildcard_list()],
                     {"default": WILDCARD_CHOOSER_PLACEHOLDER},
                 ),
-            }
+                "populated_text": ("STRING", {"multiline": True, "dynamicPrompts": False}),
+            },
         }
 
     RETURN_TYPES = ("STRING",)
@@ -311,9 +312,45 @@ class WildcardProcessor:
     CATEGORY = "Sagado-Nodes/text"
     OUTPUT_NODE = True
 
-    def doit(self, text, seed, wildcard_chooser):
-        processed = process(text, seed)
-        return {"ui": {"text": [processed]}, "result": (processed,)}
+    def doit(self, text, populated_text, seed, wildcard_chooser):
+        return {"ui": {"text": [populated_text]}, "result": (populated_text,)}
+
+
+# ---------- prompt handler ----------
+
+def onprompt(json_data):
+    prompt = json_data.get("prompt", {})
+    updated = {}
+
+    for node_id, node_data in prompt.items():
+        if node_data.get("class_type") != "SGD_Wildcard_Processor":
+            continue
+        inputs = node_data.get("inputs", {})
+        text = inputs.get("text", "")
+        seed = inputs.get("seed", 0)
+        if isinstance(seed, list):
+            continue  # linked input, skip
+        resolved = process(text, int(seed))
+        inputs["populated_text"] = resolved
+        updated[node_id] = resolved
+        PromptServer.instance.send_sync(
+            "sagado/wildcard-feedback",
+            {"node_id": node_id, "populated_text": resolved},
+        )
+
+    if updated and "extra_data" in json_data:
+        workflow = json_data["extra_data"].get("extra_pnginfo", {}).get("workflow", {})
+        for node in workflow.get("nodes", []):
+            key = str(node.get("id"))
+            if key in updated:
+                wv = node.get("widgets_values")
+                if wv and len(wv) >= 5:
+                    wv[4] = updated[key]  # populated_text is index 4
+
+    return json_data
+
+
+PromptServer.instance.add_on_prompt_handler(onprompt)
 
 
 # ---------- API routes ----------
