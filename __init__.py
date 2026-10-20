@@ -1,5 +1,5 @@
 from .nodes.nodes import *
-from .nodes.llm_nodes import OllamaNode, GetLlamaCppModelNode, GetLlmResponseNode, GetLlamaVLChatHandlerNode, ImageToPNGDataURINode, CallLLMAPINode
+from .nodes.llm_nodes import OllamaNode, GetLlamaCppResponseNode, ImageToPNGDataURINode, CallLLMAPINode
 from .nodes.wildcards import WildcardProcessor
 
 WEB_DIRECTORY = "./web"
@@ -19,9 +19,7 @@ NODE_CLASS_MAPPINGS = {
     "SGD_String_Splitter": StringSplitter,
     "SGD_Any_List_Selector": AnyListSelector,
     "SGD_Call_Ollama": OllamaNode,
-    "SGD_Get_Llama_Cpp_Model": GetLlamaCppModelNode,
-    "SGD_Get_Llama_VL_Chat_Handler": GetLlamaVLChatHandlerNode,
-    "SGD_Get_Llm_Response": GetLlmResponseNode,
+    "SGD_Get_Llama_Cpp_Response": GetLlamaCppResponseNode,
     "SGD_Image_To_PNG_Data_URI": ImageToPNGDataURINode,
     "SGD_Call_LLM_API": CallLLMAPINode,
 }
@@ -41,9 +39,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "SGD_String_Splitter": "String Splitter",
     "SGD_Any_List_Selector": "Any List Selector",
     "SGD_Call_Ollama": "Call Ollama",
-    "SGD_Get_Llama_Cpp_Model": "Get LlamaCPP Model",
-    "SGD_Get_Llama_VL_Chat_Handler": "Get Llama VL Chat Handler",
-    "SGD_Get_Llm_Response": "Get LLM Response",
+    "SGD_Get_Llama_Cpp_Response": "Get LLama CPP Response",
     "SGD_Image_To_PNG_Data_URI": "Image to PNG Data URI",
     "SGD_Call_LLM_API": "Call LLM API",
 }
