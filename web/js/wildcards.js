@@ -29,6 +29,18 @@ app.registerExtension({
 	nodeCreated(node, app) {
 		if (node.comfyClass !== "SGD_Wildcard_Processor") return;
 
+		// When text is linked from another node, onprompt can't pre-resolve it.
+		// doit() returns the resolved value in ui.populated_text — update the widget here.
+		node.onExecuted = function(output) {
+			const resolved = output?.populated_text?.[0];
+			if (resolved == null) return;
+			const w = this.widgets?.find(w => w.name === "populated_text");
+			if (w) {
+				w.value = resolved;
+				if (w.inputEl) w.inputEl.value = resolved;
+			}
+		};
+
 		// text=0, seed=1, control_after_generate=2, wildcard_chooser=3, populated_text=4
 		const tbox_id    = 0;
 		const chooser_id = 3;

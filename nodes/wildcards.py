@@ -313,7 +313,13 @@ class WildcardProcessor:
     OUTPUT_NODE = True
 
     def doit(self, text, populated_text, seed, wildcard_chooser):
-        return {"ui": {"text": [populated_text]}, "result": (populated_text,)}
+        # If text is linked from another node, onprompt can't resolve it in advance
+        # (it only sees the link reference, not the value). Process it here instead.
+        if text and text != populated_text:
+            populated_text = process(text, int(seed))
+        # Return populated_text in ui so the JS onExecuted handler can update the widget.
+        return {"ui": {"text": [populated_text], "populated_text": [populated_text]}, "result": (populated_text,)}
+
 
 
 # ---------- prompt handler ----------
@@ -328,8 +334,8 @@ def onprompt(json_data):
         inputs = node_data.get("inputs", {})
         text = inputs.get("text", "")
         seed = inputs.get("seed", 0)
-        if isinstance(seed, list):
-            continue  # linked input, skip
+        if isinstance(seed, list) or isinstance(text, list):
+            continue  # linked input — value resolved at execution time in doit()
         resolved = process(text, int(seed))
         inputs["populated_text"] = resolved
         updated[node_id] = resolved
