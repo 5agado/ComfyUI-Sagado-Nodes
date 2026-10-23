@@ -110,53 +110,64 @@ class GetLlamaCppResponseNode:
     RETURN_NAMES = ("response",)
 
     CATEGORY = "Sagado-Nodes/llm"
-    FUNCTION = "get_llama_cpp_response"
+    FUNCTION = "get_response"
     DESCRIPTION = "Get response from the provided llama.cpp server"
 
-    def get_llama_cpp_response(self, prompt: str, server_url: str,
-                               temperature, think, max_tokens, top_p, top_k, min_p,
-                               repeat_penalty, presence_penalty, seed,
-                               image_path: str = None, image_base64=None):
-        base_url = server_url.rstrip('/')
-        url = f"{base_url}/v1/chat/completions"
+    def get_response(self, prompt, server_url, temperature, think, max_tokens, top_p, top_k, min_p,
+                     repeat_penalty, presence_penalty, seed, image_path="", image_base64=""):
+        response = get_llama_cpp_response(
+            prompt=prompt, server_url=server_url, temperature=temperature,
+            think=think, max_tokens=max_tokens, top_p=top_p, top_k=top_k,
+            min_p=min_p, repeat_penalty=repeat_penalty, presence_penalty=presence_penalty,
+            seed=seed, image_path=image_path or None, image_base64=image_base64 or None
+        )
+        return response
 
-        llm_options = {
-            'top_p': top_p,
-            'top_k': top_k,
-            'min_p': min_p,
-            'repeat_penalty': repeat_penalty,
-            'presence_penalty': presence_penalty,
-        }
 
-        # Build messages
-        messages = []
-        user_content = [{"type": "text", "text": prompt}]
-        if image_path or image_base64:
-            user_content.append({"type": "image_url", "image_url": {"url": image_path or image_base64}})
-        messages.append({"role": "user", "content": user_content})
+def get_llama_cpp_response(prompt: str, server_url: str,
+                           temperature, think, max_tokens, top_p, top_k, min_p,
+                           repeat_penalty, presence_penalty, seed,
+                           image_path: str = None, image_base64=None):
+    base_url = server_url.rstrip('/')
+    url = f"{base_url}/v1/chat/completions"
 
-        payload = {
-            "model": "llama-cpp-model", # llama-server completely ignores this
-            "messages": messages,
-            "temperature": temperature,
-            "seed": seed,
-            "stream": False,
-            **llm_options,
-        }
-        if max_tokens > 0:
-            payload["max_tokens"] = max_tokens
+    llm_options = {
+        'top_p': top_p,
+        'top_k': top_k,
+        'min_p': min_p,
+        'repeat_penalty': repeat_penalty,
+        'presence_penalty': presence_penalty,
+    }
 
-        try:
-            # Send request to llama-server
-            response = requests.post(url, json=payload, timeout=360)
-            response.raise_for_status()
-            res_data = response.json()
-            content = res_data["choices"][0]["message"]["content"]
-            return (content,)
-        except requests.exceptions.RequestException as e:
-            error_msg = f"Failed to connect to llama.cpp server at {url}. Error: {str(e)}"
-            print(f"[LocalLlamaCppVisionNode] {error_msg}")
-            raise Exception(error_msg)
+    # Build messages
+    messages = []
+    user_content = [{"type": "text", "text": prompt}]
+    if image_path or image_base64:
+        user_content.append({"type": "image_url", "image_url": {"url": image_path or image_base64}})
+    messages.append({"role": "user", "content": user_content})
+
+    payload = {
+        "model": "llama-cpp-model", # llama-server completely ignores this
+        "messages": messages,
+        "temperature": temperature,
+        "seed": seed,
+        "stream": False,
+        **llm_options,
+    }
+    if max_tokens > 0:
+        payload["max_tokens"] = max_tokens
+
+    try:
+        # Send request to llama-server
+        response = requests.post(url, json=payload, timeout=360)
+        response.raise_for_status()
+        res_data = response.json()
+        content = res_data["choices"][0]["message"]["content"]
+        return (content,)
+    except requests.exceptions.RequestException as e:
+        error_msg = f"Failed to connect to llama.cpp server at {url}. Error: {str(e)}"
+        print(f"[LocalLlamaCppVisionNode] {error_msg}")
+        raise Exception(error_msg)
 
 
 GROK_MODELS = [
