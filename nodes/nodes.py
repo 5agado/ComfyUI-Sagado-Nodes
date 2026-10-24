@@ -156,7 +156,7 @@ def get_media(folder_path, media_idx, random_idx, seed, exts, sort_by="name", re
         raise ValueError(f"Invalid folder path: '{folder_path}'")
     media = []
     for ext in exts:
-        media.extend(Path(folder_path).glob(f"{prefix}*.{ext}"))
+        media.extend(Path(folder_path).rglob(f"{prefix}*.{ext}"))
     if not media:
         raise ValueError(f"No files found in '{folder_path}' matching {exts} with prefix '{prefix}'")
     print(f"Found {len(media)} files in '{folder_path}' (exts={exts}, prefix='{prefix}')")
@@ -339,9 +339,11 @@ class AnyTypeSwitch:
     def INPUT_TYPES(cls):
         return {
             "required": {
+                "switch": ("BOOLEAN", {"default": True}),
+            },
+            "optional": {
                 "on_true": ("*", {"lazy": True}),
                 "on_false": ("*", {"lazy": True}),
-                "switch": ("BOOLEAN", {"default": True}),
             },
         }
 
@@ -352,10 +354,10 @@ class AnyTypeSwitch:
     FUNCTION = "select_input"
     DESCRIPTION = "Select between two inputs of any type based on a boolean switch"
 
-    def check_lazy_status(self, on_true, on_false, switch):
+    def check_lazy_status(self, switch, on_true=None, on_false=None):
         return ["on_true"] if switch else ["on_false"]
 
-    def select_input(self, on_true, on_false, switch):
+    def select_input(self, switch, on_true=None, on_false=None):
         return (on_true if switch else on_false,)
 
 
@@ -469,5 +471,7 @@ class StringSplitter:
         # Replace escaped newlines if the user literally types '\n'
         actual_delimiter = delimiter.replace("\\n", "\n").replace("\\t", "\t")
         result = [item.strip() for item in text.split(actual_delimiter)]
+        # drop empty strings from the result
+        result = [item for item in result if item]
 
         return (result,)
