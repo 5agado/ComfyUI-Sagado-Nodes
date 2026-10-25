@@ -8,6 +8,8 @@ import torch
 from PIL import Image, ImageOps
 import comfy
 
+MISSING = object()  # sentinel for unconnected optional lazy inputs
+
 
 class ImageLoaderNode:
     @classmethod
@@ -354,11 +356,17 @@ class AnyTypeSwitch:
     FUNCTION = "select_input"
     DESCRIPTION = "Select between two inputs of any type based on a boolean switch"
 
-    def check_lazy_status(self, switch, on_true=None, on_false=None):
-        return ["on_true"] if switch else ["on_false"]
+    def check_lazy_status(self, switch, on_true=MISSING, on_false=MISSING):
+        # MISSING = not connected; None = connected but not yet evaluated
+        if switch and on_true is None:
+            return ["on_true"]
+        if not switch and on_false is None:
+            return ["on_false"]
+        return []
 
-    def select_input(self, switch, on_true=None, on_false=None):
-        return (on_true if switch else on_false,)
+    def select_input(self, switch, on_true=MISSING, on_false=MISSING):
+        selected = on_true if switch else on_false
+        return (None if selected is MISSING else selected,)
 
 
 class AnyTypeSwitchMulti:
@@ -383,16 +391,12 @@ class AnyTypeSwitchMulti:
     DESCRIPTION = "Select between multiple pairs of inputs of any type based on a single boolean switch."
 
     def check_lazy_status(self, switch, inputcount, **kwargs):
-        """
-        Dynamically requests only the needed lazy inputs based on the switch state.
-        Iterates through the requested count to generate the expected pin names.
-        """
+        # MISSING = not connected; None = connected but not yet evaluated
         needed = []
         for i in range(1, inputcount + 1):
-            if switch:
-                needed.append(f"on_true_{i}")
-            else:
-                needed.append(f"on_false_{i}")
+            key = f"on_true_{i}" if switch else f"on_false_{i}"
+            if kwargs.get(key, MISSING) is None:
+                needed.append(key)
         return needed
 
     def select_input(self, switch, inputcount, **kwargs):
