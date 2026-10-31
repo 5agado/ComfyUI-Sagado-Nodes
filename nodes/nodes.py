@@ -227,6 +227,7 @@ class VideoThumbnailGridNode:
                 "rows": ("INT", {"default": 3, "min": 1, "max": 10}),
                 "cols": ("INT", {"default": 3, "min": 1, "max": 10}),
                 "max_height": ("INT", {"default": 1024, "min": 640, "max": 2048, "step": 128}),
+                "reverse": ("BOOLEAN", {"default": False}),
             }
         }
 
@@ -236,7 +237,7 @@ class VideoThumbnailGridNode:
     FUNCTION = "make_thumbnail_grid"
     DESCRIPTION = "Extract evenly-spaced frames from a video and arrange them in a thumbnail grid"
 
-    def make_thumbnail_grid(self, video_path, rows, cols, max_height):
+    def make_thumbnail_grid(self, video_path, rows, cols, max_height, reverse=False):
         n_frames = rows * cols
 
         # Get video duration via ffprobe
@@ -249,6 +250,8 @@ class VideoThumbnailGridNode:
         # Sample timestamps evenly across the video (skip the very start/end)
         step = duration / (n_frames + 1)
         timestamps = [step * (i + 1) for i in range(n_frames)]
+        if reverse:
+            timestamps = timestamps[::-1]
 
         # Extract frames into a temp dir
         with tempfile.TemporaryDirectory() as tmp:

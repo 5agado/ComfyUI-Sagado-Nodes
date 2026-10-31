@@ -302,6 +302,7 @@ class WildcardProcessor:
                     [WILDCARD_CHOOSER_PLACEHOLDER] + [f"__{k}__" for k in get_wildcard_list()],
                     {"default": WILDCARD_CHOOSER_PLACEHOLDER},
                 ),
+                "mode": (["populate", "reproduce"], {"default": "populate"}),
                 "populated_text": ("STRING", {"multiline": True, "dynamicPrompts": False}),
             },
         }
@@ -312,13 +313,12 @@ class WildcardProcessor:
     CATEGORY = "Sagado-Nodes/text"
     OUTPUT_NODE = True
 
-    def doit(self, text, populated_text, seed, wildcard_chooser):
-        # If text is linked from another node, onprompt can't resolve it in advance
-        # (it only sees the link reference, not the value). Process it here instead.
-        if text and text != populated_text:
+    def doit(self, text, populated_text, seed, wildcard_chooser, mode="populate"):
+        # In reproduce mode onprompt already resolved the text and saved it to populated_text.
+        # In populate mode with a linked text input, onprompt couldn't resolve it, so we do it here.
+        if mode != "reproduce" and text and text != populated_text:
             populated_text = process(text, int(seed))
-        # Return populated_text in ui so the JS onExecuted handler can update the widget.
-        return {"ui": {"text": [populated_text], "populated_text": [populated_text]}, "result": (populated_text,)}
+        return {"ui": {"populated_text": [populated_text], "mode": ["populate"]}, "result": (populated_text,)}
 
 
 
@@ -334,10 +334,14 @@ def onprompt(json_data):
         inputs = node_data.get("inputs", {})
         text = inputs.get("text", "")
         seed = inputs.get("seed", 0)
-        if isinstance(seed, list) or isinstance(text, list):
+        mode = inputs.get("mode", "populate")
+        if isinstance(text, list) or isinstance(seed, list):
             continue  # linked input — value resolved at execution time in doit()
+        if mode != "populate":
+            continue  # reproduce mode: keep populated_text as-is
         resolved = process(text, int(seed))
         inputs["populated_text"] = resolved
+        inputs["mode"] = "reproduce"
         updated[node_id] = resolved
         PromptServer.instance.send_sync(
             "sagado/wildcard-feedback",
@@ -350,8 +354,9 @@ def onprompt(json_data):
             key = str(node.get("id"))
             if key in updated:
                 wv = node.get("widgets_values")
-                if wv and len(wv) >= 5:
-                    wv[4] = updated[key]  # populated_text is index 4
+                if wv and len(wv) >= 6:
+                    wv[4] = "reproduce"    # mode is index 4
+                    wv[5] = updated[key]   # populated_text is index 5
 
     return json_data
 

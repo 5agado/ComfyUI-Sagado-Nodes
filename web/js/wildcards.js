@@ -29,19 +29,21 @@ app.registerExtension({
 	nodeCreated(node, app) {
 		if (node.comfyClass !== "SGD_Wildcard_Processor") return;
 
-		// When text is linked from another node, onprompt can't pre-resolve it.
-		// doit() returns the resolved value in ui.populated_text — update the widget here.
+		// After execution: update populated_text widget and reset mode to populate.
 		node.onExecuted = function(output) {
 			const resolved = output?.populated_text?.[0];
-			if (resolved == null) return;
-			const w = this.widgets?.find(w => w.name === "populated_text");
-			if (w) {
-				w.value = resolved;
-				if (w.inputEl) w.inputEl.value = resolved;
+			if (resolved != null) {
+				const w = this.widgets?.find(w => w.name === "populated_text");
+				if (w) {
+					w.value = resolved;
+					if (w.inputEl) w.inputEl.value = resolved;
+				}
 			}
+			const modeWidget = this.widgets?.find(w => w.name === "mode");
+			if (modeWidget) modeWidget.value = output?.mode?.[0] ?? "populate";
 		};
 
-		// text=0, seed=1, control_after_generate=2, wildcard_chooser=3, populated_text=4
+		// text=0, seed=1, control_after_generate=2, wildcard_chooser=3, mode=4, populated_text=5
 		const tbox_id    = 0;
 		const chooser_id = 3;
 
@@ -134,8 +136,8 @@ app.registerExtension({
 					: node.properties.sgd_collapsed_height;
 			}
 			// widgets_values are applied AFTER onConfigure, so read directly from info
-			// order: text(0), seed(1), control_after_generate(2), wildcard_chooser(3), populated_text(4)
-			const savedValue = info?.widgets_values?.[4];
+			// order: text(0), seed(1), control_after_generate(2), wildcard_chooser(3), mode(4), populated_text(5)
+			const savedValue = info?.widgets_values?.[5];
 			if (savedValue && populatedWidget) {
 				populatedWidget.value = savedValue;
 				if (populatedWidget.inputEl) populatedWidget.inputEl.value = savedValue;
