@@ -291,6 +291,34 @@ def process(text, seed=None):
 WILDCARD_CHOOSER_PLACEHOLDER = "Select wildcard to insert"
 
 
+def _save_populated_text(extra_pnginfo, unique_id, populated_text):
+    if extra_pnginfo is None or unique_id is None:
+        return
+    workflow = extra_pnginfo.get("workflow")
+    if not workflow:
+        return
+
+    for node in workflow.get("nodes", []):
+        if str(node.get("id")) != str(unique_id):
+            continue
+        values = node.get("widgets_values")
+        named_values = node.get("widgets_values_named")
+        saved = False
+        if isinstance(values, list) and len(values) >= 6:
+            values[4] = "reproduce"
+            values[5] = populated_text
+            saved = True
+        if isinstance(named_values, dict):
+            named_values["mode"] = "reproduce"
+            named_values["populated_text"] = populated_text
+            saved = True
+        if not saved:
+            logging.warning("[Sagado] Cannot save wildcard text: node %s has no compatible widget values", unique_id)
+        return
+
+    logging.warning("[Sagado] Cannot save wildcard text: workflow node %s was not found", unique_id)
+
+
 class WildcardProcessor:
     @classmethod
     def INPUT_TYPES(cls):
@@ -305,6 +333,10 @@ class WildcardProcessor:
                 "mode": (["populate", "reproduce"], {"default": "populate"}),
                 "populated_text": ("STRING", {"multiline": True, "dynamicPrompts": False}),
             },
+            "hidden": {
+                "unique_id": "UNIQUE_ID",
+                "extra_pnginfo": "EXTRA_PNGINFO",
+            },
         }
 
     RETURN_TYPES = ("STRING",)
@@ -313,11 +345,15 @@ class WildcardProcessor:
     CATEGORY = "Sagado-Nodes/text"
     OUTPUT_NODE = True
 
-    def doit(self, text, populated_text, seed, wildcard_chooser, mode="populate"):
-        # In reproduce mode onprompt already resolved the text and saved it to populated_text.
-        # In populate mode with a linked text input, onprompt couldn't resolve it, so we do it here.
-        if mode != "reproduce" and text and text != populated_text:
+    @classmethod
+    def IS_CHANGED(cls, mode="populate", **kwargs):
+        # Linked populate inputs must execute to update each queued workflow's metadata.
+        return float("nan") if mode == "populate" else mode
+
+    def doit(self, text, populated_text, seed, wildcard_chooser, mode="populate", unique_id=None, extra_pnginfo=None):
+        if mode != "reproduce":
             populated_text = process(text, int(seed))
+        _save_populated_text(extra_pnginfo, unique_id, populated_text)
         return {"ui": {"populated_text": [populated_text], "mode": ["populate"]}, "result": (populated_text,)}
 
 
@@ -335,10 +371,15 @@ def onprompt(json_data):
         text = inputs.get("text", "")
         seed = inputs.get("seed", 0)
         mode = inputs.get("mode", "populate")
+        if mode == "reproduce":
+            populated_text = inputs.get("populated_text", "")
+            if not isinstance(populated_text, list):
+                updated[node_id] = populated_text
+            continue
         if isinstance(text, list) or isinstance(seed, list):
             continue  # linked input — value resolved at execution time in doit()
         if mode != "populate":
-            continue  # reproduce mode: keep populated_text as-is
+            continue
         resolved = process(text, int(seed))
         inputs["populated_text"] = resolved
         inputs["mode"] = "reproduce"
@@ -348,15 +389,9 @@ def onprompt(json_data):
             {"node_id": node_id, "populated_text": resolved},
         )
 
-    if updated and "extra_data" in json_data:
-        workflow = json_data["extra_data"].get("extra_pnginfo", {}).get("workflow", {})
-        for node in workflow.get("nodes", []):
-            key = str(node.get("id"))
-            if key in updated:
-                wv = node.get("widgets_values")
-                if wv and len(wv) >= 6:
-                    wv[4] = "reproduce"    # mode is index 4
-                    wv[5] = updated[key]   # populated_text is index 5
+    extra_pnginfo = json_data.get("extra_data", {}).get("extra_pnginfo")
+    for node_id, populated_text in updated.items():
+        _save_populated_text(extra_pnginfo, node_id, populated_text)
 
     return json_data
 
