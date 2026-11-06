@@ -22,7 +22,7 @@ def download_model(url, rename = None, civitai_api_key = None, use_curl = False,
         token_url = f"{url}{'&' if '?' in url else '?'}token={civitai_api_key}"
         if use_curl:
             # -f: fail on HTTP errors, -L: follow redirects, -J: use server-provided filename
-            cmd = f'curl --skip-existing -fLJ "{token_url}"'
+            cmd = f'curl -fLJ "{token_url}"'
             cmd += f' -o {rename}' if rename else ' -O'  # -O: save with remote filename
         else:
             cmd = f'{base_aria_command} "{token_url}"'
@@ -32,8 +32,7 @@ def download_model(url, rename = None, civitai_api_key = None, use_curl = False,
         subprocess.run(cmd, shell=True, check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:
         print(f'Error downloading model from {url}: {e}')
-        if e.stdout:
-            print(f'stdout: {e.stdout}')
+        print(f"Exited with code {e.returncode}. (File may already exist or link expired)")
         if e.stderr:
             print(f'stderr: {e.stderr}')
 

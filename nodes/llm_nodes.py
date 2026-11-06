@@ -142,8 +142,17 @@ def get_llama_cpp_response(prompt: str, server_url: str,
     # Build messages
     messages = []
     user_content = [{"type": "text", "text": prompt}]
-    if image_path or image_base64:
-        user_content.append({"type": "image_url", "image_url": {"url": image_path or image_base64}})
+    image_url = image_path or image_base64
+    if image_path and not image_path.lower().startswith(("http://", "https://", "data:", "file://")):
+        image_bytes = Path(image_path).read_bytes()
+        with Image.open(io.BytesIO(image_bytes)) as image:
+            if image.format is None or image.format not in Image.MIME:
+                raise ValueError(f"Unsupported image format: {image_path}")
+            mime_type = Image.MIME[image.format]
+        encoded_image = base64.b64encode(image_bytes).decode("ascii")
+        image_url = f"data:{mime_type};base64,{encoded_image}"
+    if image_url:
+        user_content.append({"type": "image_url", "image_url": {"url": image_url}})
     messages.append({"role": "user", "content": user_content})
 
     payload = {
@@ -152,6 +161,7 @@ def get_llama_cpp_response(prompt: str, server_url: str,
         "temperature": temperature,
         "seed": seed,
         "stream": False,
+        "chat_template_kwargs": {"enable_thinking": think},
         **llm_options,
     }
     if max_tokens > 0:
@@ -209,8 +219,13 @@ class CallLLMAPINode:
         if image_url or image_base64:
             img_src = image_base64 if image_base64.startswith("data:") else f"data:image/png;base64,{image_base64}" if image_base64 else image_url
             content = [
-                {"type": "text", "text": prompt},
-                {"type": "image_url", "image_url": img_src},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": prompt},
+                        {"type": "input_image", "image_url": img_src},
+                    ],
+                },
             ]
         else:
             content = prompt

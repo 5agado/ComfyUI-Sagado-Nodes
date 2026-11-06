@@ -213,7 +213,7 @@ class TextLoaderNode:
                 text = Path(file_path).read_text(encoding="utf-8")
             except Exception as e:
                 print(f"Error reading file {file_path}: {e}")
-                text = ""
+                raise e
             return text, str(file_path)
         return "", str(file_path)
 
@@ -288,7 +288,7 @@ class FilmGrainNode:
             "required": {
                 "images": ("IMAGE",),
                 "strength": ("FLOAT", {"default": 0.07, "min": 0.0, "max": 1.0, "step": 0.01}),
-                "batch_size": ("INT", {"default": 128, "step": 32}),
+                "batch_size": ("INT", {"default": 128, "min": 1, "step": 32}),
             }
         }
 
@@ -381,12 +381,14 @@ class AnyTypeSwitchMulti:
                 "inputcount": ("INT", {"default": 1, "min": 1, "max": 5, "step": 1}),
                 "switch": ("BOOLEAN", {"default": True}),
             },
-            "optional": {},
+            "optional": {
+                f"on_{branch}_{i}": ("*", {"lazy": True})
+                for i in range(1, 6)
+                for branch in ("true", "false")
+            },
         }
 
-    # Python statically defines the first output; the JS frontend will generate OUTPUT_2, OUTPUT_3, etc.
-    # The ComfyUI execution engine doesn't mind length mismatches as long as JS creates the pins
-    # and this Python class returns a tuple of the correct length.
+    # The frontend shows only inputcount pairs; the backend declares all supported slots.
     RETURN_TYPES = ("*", "*", "*", "*", "*")
     RETURN_NAMES = ("OUTPUT_1", "OUTPUT_2", "OUTPUT_3", "OUTPUT_4", "OUTPUT_5")
     CATEGORY = "Sagado-Nodes"
