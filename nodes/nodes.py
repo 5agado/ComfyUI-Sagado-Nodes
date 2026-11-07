@@ -459,6 +459,38 @@ class AnyListSelector:
         return (selected,)
 
 
+class TextTemplate:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "inputcount": ("INT", {"default": 1, "min": 1, "max": 10, "step": 1}),
+                "template": ("STRING", {"multiline": True, "default": "Hello {input_1}!"}),
+            },
+            "optional": {
+                f"input_{i}": ("STRING", {"forceInput": True})
+                for i in range(1, 11)
+            },
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("text",)
+    CATEGORY = "Sagado-Nodes"
+    FUNCTION = "render_template"
+    DESCRIPTION = (
+        "Format a multiline text template using {input_1}, {input_2}, … placeholders "
+        "that reference the extra text inputs defined by inputcount."
+    )
+
+    def render_template(self, inputcount, template, **kwargs):
+        values = {f"input_{i}": kwargs.get(f"input_{i}") or "" for i in range(1, inputcount + 1)}
+        try:
+            result = template.format(**values)
+        except KeyError as e:
+            raise ValueError(f"Template references undefined placeholder: {e}")
+        return (result,)
+
+
 class StringSplitter:
     @classmethod
     def INPUT_TYPES(cls):

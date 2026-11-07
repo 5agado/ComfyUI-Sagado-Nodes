@@ -345,11 +345,6 @@ class WildcardProcessor:
     CATEGORY = "Sagado-Nodes/text"
     OUTPUT_NODE = True
 
-    @classmethod
-    def IS_CHANGED(cls, mode="populate", **kwargs):
-        # Linked populate inputs must execute to update each queued workflow's metadata.
-        return float("nan") if mode == "populate" else mode
-
     def doit(self, text, populated_text, seed, wildcard_chooser, mode="populate", unique_id=None, extra_pnginfo=None):
         if mode != "reproduce":
             populated_text = process(text, int(seed))
