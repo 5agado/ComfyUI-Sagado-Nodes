@@ -371,9 +371,11 @@ def onprompt(json_data):
             if not isinstance(populated_text, list):
                 updated[node_id] = populated_text
             continue
-        if isinstance(text, list) or isinstance(seed, list):
-            continue  # linked input — value resolved at execution time in doit()
         if mode != "populate":
+            continue
+        if isinstance(text, list) or isinstance(seed, list):
+            # Preview feedback must not change execution cache signatures.
+            inputs["populated_text"] = ""
             continue
         resolved = process(text, int(seed))
         inputs["populated_text"] = resolved

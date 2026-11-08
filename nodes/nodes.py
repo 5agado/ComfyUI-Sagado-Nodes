@@ -468,7 +468,7 @@ class TextTemplate:
                 "template": ("STRING", {"multiline": True, "default": "Hello {input_1}!"}),
             },
             "optional": {
-                f"input_{i}": ("STRING", {"forceInput": True})
+                f"input_{i}": ("STRING", {"forceInput": True, "lazy": True})
                 for i in range(1, 11)
             },
         }
@@ -481,6 +481,14 @@ class TextTemplate:
         "Format a multiline text template using {input_1}, {input_2}, … placeholders "
         "that reference the extra text inputs defined by inputcount."
     )
+
+    def check_lazy_status(self, inputcount, template, **kwargs):
+        needed = []
+        for i in range(1, inputcount + 1):
+            key = f"input_{i}"
+            if kwargs.get(key, MISSING) is None:
+                needed.append(key)
+        return needed
 
     def render_template(self, inputcount, template, **kwargs):
         values = {f"input_{i}": kwargs.get(f"input_{i}") or "" for i in range(1, inputcount + 1)}

@@ -107,6 +107,7 @@ class WildcardMetadataTests(unittest.TestCase):
     def test_linked_seed_saves_current_result(self):
         data = self.make_prompt(seed=["3", 0])
         self.wildcards.onprompt(data)
+        self.assertEqual(data["prompt"]["7"]["inputs"]["seed"], ["3", 0])
         result = self.execute(data, seed=29)
         expected = np.random.default_rng(29).choice(["red", "green", "blue"], p=[1 / 3] * 3)
         self.assertEqual(result["result"][0], expected)
@@ -155,16 +156,19 @@ class WildcardMetadataTests(unittest.TestCase):
         with patch.object(self.wildcards, "process", side_effect=AssertionError("Already populated")):
             self.assert_saved(data, self.execute(data))
 
-    def test_reproduce_hook_updates_metadata_even_with_linked_text(self):
-        data = self.make_prompt(text=["3", 0], mode="reproduce", populated_text="saved result")
-        with patch.object(self.wildcards, "process", side_effect=AssertionError("Must not repopulate")):
-            self.wildcards.onprompt(data)
-            self.assertEqual(self.workflow_node(data)["widgets_values"][4:6], ["reproduce", "saved result"])
-            result = self.execute(data, text="different upstream text")
-        self.assertEqual(result["result"], ("saved result",))
-        self.assert_saved(data, result)
+    def test_reproduce_hook_updates_metadata_even_with_linked_inputs(self):
+        for linked in ({"text": ["3", 0]}, {"seed": ["3", 0]}):
+            with self.subTest(linked=linked):
+                data = self.make_prompt(**linked, mode="reproduce", populated_text="saved result")
+                with patch.object(self.wildcards, "process", side_effect=AssertionError("Must not repopulate")):
+                    self.wildcards.onprompt(data)
+                    self.assertEqual(self.workflow_node(data)["widgets_values"][4:6], ["reproduce", "saved result"])
+                    result = self.execute(data, text="different upstream text", seed=999)
+                self.assertEqual(result["result"], ("saved result",))
+                self.assert_saved(data, result)
 
-    def run_queued_with_cache(self, template):
+    def run_queued_with_cache(self, template, update_preview=False):
+        template = copy.deepcopy(template)
         cache = {}
         executions = 0
         for _ in range(2):
@@ -176,15 +180,31 @@ class WildcardMetadataTests(unittest.TestCase):
                 resolved = {}
                 if isinstance(inputs["text"], list):
                     resolved["text"] = "__colors__"
+                if isinstance(inputs["seed"], list):
+                    resolved["seed"] = 17
                 cache[key] = self.execute(data, **resolved)
                 executions += 1
                 self.assert_saved(data, cache[key])
             elif inputs["mode"] == "reproduce":
                 self.assert_saved(data, cache[key])
+            if update_preview:
+                template["prompt"]["7"]["inputs"]["populated_text"] = cache[key]["result"][0]
         return executions
 
     def test_repeated_queued_linked_prompts_do_not_force_reexecution(self):
         self.assertEqual(self.run_queued_with_cache(self.make_prompt(text=["3", 0])), 1)
+
+    def test_linked_populate_preview_feedback_remains_cacheable(self):
+        for linked in (
+            {"text": ["3", 0]},
+            {"seed": ["3", 0]},
+            {"text": ["3", 0], "seed": ["4", 0]},
+        ):
+            with self.subTest(linked=linked):
+                self.assertEqual(
+                    self.run_queued_with_cache(self.make_prompt(**linked), update_preview=True),
+                    1,
+                )
 
     def test_inline_and_reproduce_prompts_remain_cacheable(self):
         for template in (

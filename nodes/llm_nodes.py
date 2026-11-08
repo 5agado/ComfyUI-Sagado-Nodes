@@ -121,7 +121,7 @@ class GetLlamaCppResponseNode:
             min_p=min_p, repeat_penalty=repeat_penalty, presence_penalty=presence_penalty,
             seed=seed, image_path=image_path or None, image_base64=image_base64 or None
         )
-        return (str(response.message.content),)
+        return (str(response['message']['content']),)
 
 
 def get_llama_cpp_response(prompt: str, server_url: str,
