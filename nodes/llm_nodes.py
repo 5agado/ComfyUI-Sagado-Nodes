@@ -121,7 +121,7 @@ class GetLlamaCppResponseNode:
             min_p=min_p, repeat_penalty=repeat_penalty, presence_penalty=presence_penalty,
             seed=seed, image_path=image_path or None, image_base64=image_base64 or None
         )
-        return response
+        return (str(response.message.content),)
 
 
 def get_llama_cpp_response(prompt: str, server_url: str,
@@ -162,8 +162,8 @@ def get_llama_cpp_response(prompt: str, server_url: str,
         response = requests.post(url, json=payload, timeout=360)
         response.raise_for_status()
         res_data = response.json()
-        content = res_data["choices"][0]["message"]["content"]
-        return (content,)
+        content = res_data["choices"][0]
+        return content
     except requests.exceptions.RequestException as e:
         error_msg = f"Failed to connect to llama.cpp server at {url}. Error: {str(e)}"
         print(f"[LocalLlamaCppVisionNode] {error_msg}")
