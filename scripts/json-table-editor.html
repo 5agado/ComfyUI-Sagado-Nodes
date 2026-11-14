@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JSON Table Editor</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: #f8fafc;
+      margin-bottom: 20px;
+    }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
+    .btn {
+      padding: 7px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 500;
+      transition: opacity .15s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+
+    .btn-primary   { background: #3b82f6; color: #fff; }
+    .btn-success   { background: #22c55e; color: #fff; }
+    .btn-danger    { background: #ef4444; color: #fff; }
+    .btn-secondary { background: #334155; color: #cbd5e1; }
+
+    .file-label {
+      padding: 7px 16px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: #94a3b8;
+      transition: border-color .15s;
+    }
+    .file-label:hover { border-color: #3b82f6; color: #e2e8f0; }
+    #file-input { display: none; }
+
+    .filename {
+      font-size: 0.8rem;
+      color: #64748b;
+    }
+
+    .spacer { flex: 1; }
+
+    .stats {
+      font-size: 0.8rem;
+      color: #64748b;
+      white-space: nowrap;
+    }
+
+    /* ── Filter bar ── */
+    .filter-bar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+      align-items: flex-end;
+    }
+
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .filter-group label {
+      font-size: 0.7rem;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .filter-input,
+    .filter-select {
+      padding: 5px 9px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 5px;
+      color: #e2e8f0;
+      font-size: 0.82rem;
+      width: 130px;
+      outline: none;
+      transition: border-color .15s;
+    }
+    .filter-input:focus,
+    .filter-select:focus { border-color: #3b82f6; }
+    .filter-select {
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2364748b'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      padding-right: 24px;
+    }
+
+    /* ── Table ── */
+    .table-wrap {
+      overflow-x: auto;
+      border-radius: 8px;
+      border: 1px solid #1e293b;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.84rem;
+    }
+
+    thead th {
+      background: #1e293b;
+      padding: 10px 12px;
+      text-align: left;
+      color: #94a3b8;
+      font-weight: 600;
+      white-space: nowrap;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      border-bottom: 1px solid #334155;
+    }
+
+    thead th.actions-col { width: 100px; text-align: center; }
+
+    tbody tr { border-bottom: 1px solid #1a2233; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #151d2e; }
+    tbody tr.editing { background: #12202f; }
+
+    td {
+      padding: 8px 12px;
+      color: #cbd5e1;
+      vertical-align: middle;
+      max-width: 280px;
+    }
+
+    td .cell-text {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: block;
+      max-width: 100%;
+    }
+
+    /* ── Cell editor ── */
+    .cell-editor {
+      width: 100%;
+      padding: 4px 7px;
+      background: #0f1117;
+      border: 1px solid #3b82f6;
+      border-radius: 4px;
+      color: #e2e8f0;
+      font-size: 0.84rem;
+      outline: none;
+    }
+
+    /* ── Action buttons in rows ── */
+    .row-actions { text-align: center; white-space: nowrap; }
+    .icon-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 3px 5px;
+      border-radius: 4px;
+      transition: background .15s;
+      line-height: 1;
+    }
+    .icon-btn:hover { background: #1e293b; }
+
+    /* ── Empty / no-file state ── */
+    .empty {
+      text-align: center;
+      padding: 60px 20px;
+      color: #475569;
+      font-size: 0.9rem;
+    }
+    .empty .icon { font-size: 2.5rem; margin-bottom: 10px; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 10px 18px;
+      font-size: 0.85rem;
+      color: #e2e8f0;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity .25s, transform .25s;
+      pointer-events: none;
+      z-index: 100;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+  </style>
+</head>
+<body>
+
+<div class="toolbar">
+  <label class="file-label" for="file-input">📂 Load JSON</label>
+  <input type="file" id="file-input" accept=".json" />
+  <span class="filename" id="filename">No file loaded</span>
+
+  <div class="spacer"></div>
+
+  <button class="btn btn-secondary" id="btn-add-row" disabled>+ Add Row</button>
+  <button class="btn btn-success"   id="btn-save"    disabled>💾 Save JSON</button>
+  <span class="stats" id="stats"></span>
+</div>
+
+<div class="filter-bar" id="filter-bar"></div>
+
+<div class="table-wrap" id="table-wrap">
+  <div class="empty">
+    <div class="icon">📋</div>
+    Load a JSON file to get started
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(() => {
+  let data       = [];   // master array
+  let columns    = [];   // ordered column keys
+  let filters    = {};   // { col: searchString }
+  let editingRow = null; // index in data[] currently being edited
+  let loadedName = '';
+
+  /* ───────── helpers ───────── */
+
+  function toast(msg, ms = 2000) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => el.classList.remove('show'), ms);
+  }
+
+  function escHtml(v) {
+    return String(v ?? '')
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  const NO_FILTER = undefined;  // sentinel: filter not set
+
+  function filteredData() {
+    return data.filter(row =>
+      columns.every(col => {
+        const f = filters[col];
+        if (f === NO_FILTER || f === null) return true;
+        const cellVal = String(row[col] ?? '').toLowerCase();
+        if (f === '') return cellVal === '';   // exact match for "empty" filter
+        return cellVal.includes(f.toLowerCase());
+      })
+    );
+  }
+
+  /* ───────── load JSON ───────── */
+
+  document.getElementById('file-input').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    loadedName = file.name;
+
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const parsed = JSON.parse(ev.target.result);
+        if (!Array.isArray(parsed)) throw new Error('Root must be a JSON array');
+        if (parsed.length === 0) { toast('File is empty (no rows)'); return; }
+
+        data    = parsed.map(r => ({ ...r })); // shallow clone each object
+        columns = Array.from(new Set(data.flatMap(r => Object.keys(r))));
+        filters = {};
+        editingRow = null;
+
+        document.getElementById('filename').textContent = file.name;
+        document.getElementById('btn-save').disabled    = false;
+        document.getElementById('btn-add-row').disabled = false;
+
+        buildFilterBar();
+        renderTable();
+        toast(`Loaded ${data.length} row(s)`);
+      } catch (err) {
+        toast('Error: ' + err.message, 4000);
+      }
+    };
+    reader.readAsText(file);
+    // allow reloading same file
+    e.target.value = '';
+  });
+
+  /* ───────── filter bar ───────── */
+
+  const DROPDOWN_THRESHOLD = 10;
+
+  function uniqueValues(col) {
+    return Array.from(new Set(data.map(r => String(r[col] ?? '')))).sort();
+  }
+
+  function buildFilterBar() {
+    const bar = document.getElementById('filter-bar');
+    bar.innerHTML = '';
+
+    columns.forEach(col => {
+      const g = document.createElement('div');
+      g.className = 'filter-group';
+      g.innerHTML = `<label>${escHtml(col)}</label>`;
+
+      const vals = uniqueValues(col);
+      if (vals.length < DROPDOWN_THRESHOLD) {
+        // dropdown
+        const sel = document.createElement('select');
+        sel.className    = 'filter-select';
+        sel.dataset.col  = col;
+
+        const opt0 = document.createElement('option');
+        opt0.value       = '__ALL__';
+        opt0.textContent = '— all —';
+        if (filters[col] === undefined) opt0.selected = true;
+        sel.appendChild(opt0);
+
+        vals.forEach(v => {
+          const opt = document.createElement('option');
+          opt.value       = v;          // '' for empty, actual value otherwise
+          opt.textContent = v === '' ? '(empty)' : v;
+          if (filters[col] === v) opt.selected = true;
+          sel.appendChild(opt);
+        });
+
+        sel.addEventListener('change', () => {
+          // use undefined as "no filter" so empty-string can mean "filter for empty"
+          filters[col] = sel.value === '__ALL__' ? undefined : sel.value;
+          renderTable();
+        });
+
+        g.appendChild(sel);
+      } else {
+        // free-text input
+        const inp = document.createElement('input');
+        inp.className   = 'filter-input';
+        inp.type        = 'search';
+        inp.placeholder = 'filter…';
+        inp.dataset.col = col;
+        inp.value       = filters[col] || '';
+        inp.addEventListener('input', () => {
+          filters[col] = inp.value === '' ? undefined : inp.value;
+          renderTable();
+        });
+        g.appendChild(inp);
+      }
+
+      bar.appendChild(g);
+    });
+
+    // Clear filters button
+    if (columns.length) {
+      const g = document.createElement('div');
+      g.className = 'filter-group';
+      g.innerHTML = '<label>&nbsp;</label>';
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-secondary';
+      btn.textContent = '✕ Clear';
+      btn.addEventListener('click', () => {
+        filters = Object.fromEntries(columns.map(c => [c, undefined]));
+        bar.querySelectorAll('.filter-input').forEach(i => i.value = '');
+        bar.querySelectorAll('.filter-select').forEach(s => s.selectedIndex = 0);
+        renderTable();
+      });
+      g.appendChild(btn);
+      bar.appendChild(g);
+    }
+  }
+
+  /* ───────── table render ───────── */
+
+  function renderTable() {
+    const visible = filteredData();
+    updateStats(visible.length, data.length);
+
+    const wrap = document.getElementById('table-wrap');
+    if (!data.length) {
+      wrap.innerHTML = '<div class="empty"><div class="icon">📋</div>Load a JSON file to get started</div>';
+      return;
+    }
+
+    const table = document.createElement('table');
+
+    // head
+    const thead = table.createTHead();
+    const hrow  = thead.insertRow();
+    columns.forEach(col => {
+      const th = document.createElement('th');
+      th.textContent = col;
+      hrow.appendChild(th);
+    });
+    const thAct = document.createElement('th');
+    thAct.textContent = 'Actions';
+    thAct.className   = 'actions-col';
+    hrow.appendChild(thAct);
+
+    // body
+    const tbody = table.createTBody();
+    visible.forEach(row => {
+      const idx = data.indexOf(row); // real index in master array
+      const tr  = tbody.insertRow();
+      tr.dataset.idx = idx;
+      if (editingRow === idx) tr.classList.add('editing');
+
+      columns.forEach(col => {
+        const td = tr.insertCell();
+        if (editingRow === idx) {
+          const inp = document.createElement('input');
+          inp.className   = 'cell-editor';
+          inp.type        = 'text';
+          inp.value       = row[col] ?? '';
+          inp.dataset.col = col;
+          td.appendChild(inp);
+        } else {
+          const span = document.createElement('span');
+          span.className   = 'cell-text';
+          span.title       = String(row[col] ?? '');
+          span.textContent = row[col] ?? '';
+          td.appendChild(span);
+        }
+      });
+
+      // action cell
+      const tdAct = tr.insertCell();
+      tdAct.className = 'row-actions';
+
+      if (editingRow === idx) {
+        tdAct.innerHTML =
+          `<button class="icon-btn" title="Save row"    data-action="save"   data-idx="${idx}">✅</button>` +
+          `<button class="icon-btn" title="Cancel edit" data-action="cancel" data-idx="${idx}">❌</button>`;
+      } else {
+        tdAct.innerHTML =
+          `<button class="icon-btn" title="Edit row"   data-action="edit"   data-idx="${idx}">✏️</button>` +
+          `<button class="icon-btn" title="Delete row" data-action="delete" data-idx="${idx}">🗑️</button>`;
+      }
+    });
+
+    wrap.innerHTML = '';
+    wrap.appendChild(table);
+
+    // delegate events on tbody
+    tbody.addEventListener('click', e => {
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      const action = btn.dataset.action;
+      const idx    = parseInt(btn.dataset.idx, 10);
+
+      if (action === 'edit') {
+        editingRow = idx;
+        renderTable();
+      } else if (action === 'cancel') {
+        editingRow = null;
+        renderTable();
+      } else if (action === 'save') {
+        // read inputs from the same tr
+        const tr = btn.closest('tr');
+        tr.querySelectorAll('.cell-editor').forEach(inp => {
+          data[idx][inp.dataset.col] = inp.value;
+        });
+        editingRow = null;
+        renderTable();
+        toast('Row saved');
+      } else if (action === 'delete') {
+        if (!confirm('Delete this row?')) return;
+        data.splice(idx, 1);
+        if (editingRow === idx) editingRow = null;
+        renderTable();
+        toast('Row deleted');
+      }
+    });
+  }
+
+  function updateStats(visible, total) {
+    const el = document.getElementById('stats');
+    el.textContent = visible === total
+      ? `${total} row(s)`
+      : `${visible} / ${total} row(s) shown`;
+  }
+
+  /* ───────── add row ───────── */
+
+  document.getElementById('btn-add-row').addEventListener('click', () => {
+    const blank = Object.fromEntries(columns.map(c => [c, '']));
+    data.push(blank);
+    editingRow = data.length - 1;
+    // clear filters so new row is visible
+    filters = {};
+    document.querySelectorAll('.filter-input').forEach(i => i.value = '');
+    renderTable();
+  });
+
+  /* ───────── save JSON ───────── */
+
+  document.getElementById('btn-save').addEventListener('click', () => {
+    if (!data.length) return;
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = loadedName || 'data.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('File saved');
+  });
+
+})();
+</script>
+</body>
+</html>
